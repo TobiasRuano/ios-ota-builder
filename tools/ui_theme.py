@@ -591,13 +591,13 @@ table.builds-table {
   font-size: .9rem;
 }
 
-col.col-build { width: 20%; }
-col.col-branch { width: 24%; }
-col.col-commit { width: 14%; }
-col.col-version { width: 12%; }
-col.col-duration { width: 10%; }
-col.col-size { width: 8%; }
-col.col-actions { width: 12%; }
+col.col-build { width: 17%; }
+col.col-branch { width: 20%; }
+col.col-commit { width: 11%; }
+col.col-version { width: 11%; }
+col.col-duration { width: 9%; }
+col.col-size { width: 7%; }
+col.col-actions { width: 17%; min-width: 8.75rem; }
 
 table.builds-table th {
   padding: .65rem 1.25rem;
@@ -626,6 +626,19 @@ table.builds-table td.cell-truncate {
 
 table.builds-table td.cell-nowrap {
   white-space: nowrap;
+}
+
+table.builds-table th:last-child,
+table.builds-table td.cell-actions {
+  text-align: right;
+}
+
+table.builds-table td.cell-actions {
+  overflow: visible;
+}
+
+table.builds-table td.cell-actions .actions {
+  justify-content: flex-end;
 }
 
 table.builds-table tbody tr:last-child td { border-bottom: none; }
