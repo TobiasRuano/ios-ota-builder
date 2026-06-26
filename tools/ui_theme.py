@@ -488,6 +488,20 @@ table.builds-table tbody tr:last-child td { border-bottom: none; }
 
 table.builds-table tbody tr:hover td { background: var(--surface-muted); }
 
+table.builds-table tbody tr.build-row-failed td {
+  background: color-mix(in srgb, var(--badge-failed-bg) 35%, transparent);
+}
+
+table.builds-table tbody tr.build-row-failed:hover td {
+  background: color-mix(in srgb, var(--badge-failed-bg) 55%, transparent);
+}
+
+.btn-primary.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .build-name {
   display: flex;
   flex-wrap: wrap;
