@@ -78,7 +78,7 @@ flowchart LR
 | F17 | Live build progress | 4 | P2 | M | Planned | [F17](roadmap-features.md#f17) |
 | F18 | `/health` endpoint | 5 | P2 | S | Done | [F18](roadmap-features.md#f18) |
 | F19 | Server status panel | 5 | P2 | M | Planned | [F19](roadmap-features.md#f19) |
-| F20 | Failed builds in dashboard | 5 | P2 | M | Planned | [F20](roadmap-features.md#f20) |
+| F20 | Failed builds in dashboard | 5 | P2 | M | Done | [F20](roadmap-features.md#f20) |
 | F21 | `ota_status.sh` script | 5 | P2 | S | Done | [F21](roadmap-features.md#f21) |
 | F22 | Shell aliases documentation | 5 | P3 | S | Done | [F22](roadmap-features.md#f22) |
 | F23 | Changelog between builds | 4 | P2 | M | Planned | [F23](roadmap-features.md#f23) |

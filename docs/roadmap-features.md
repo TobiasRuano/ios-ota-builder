@@ -939,7 +939,7 @@ F18 recommended first.
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P2 |
 | **Effort** | M |
 | **Phase** | 5 |
@@ -960,10 +960,10 @@ F07 failure badge.
 
 **Acceptance criteria**
 
-- [ ] Failed builds visible in dashboard table
-- [ ] Diagnostics link works
-- [ ] Successful builds unchanged
-- [ ] Retention policy: decide if failures count toward `OTA_KEEP_BUILDS` (document choice)
+- [x] Failed builds visible in dashboard table
+- [x] Diagnostics link works
+- [x] Successful builds unchanged
+- [x] Retention policy: failures count toward `OTA_KEEP_BUILDS` (documented in SETUP.md)
 
 ---
 

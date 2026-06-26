@@ -135,7 +135,8 @@ OTA_STATUS_MIN_DISK_MB=5000   # ota-status warns/exits if free space below this 
 ```
 
 - Automatic cleanup at the end of each build and daily at 03:00 (`ota-cleanup` LaunchAgent).
-- The dashboard (`dashboard_url` in the build JSON) lists only builds with an IPA on disk.
+- The dashboard (`dashboard_url` in the build JSON) lists successful builds (with an IPA) and failed builds (with `summary.json` where `status: failure`). Failed rows show a red badge and link to diagnostics and logs — no Install/IPA actions.
+- Failed builds count toward `OTA_KEEP_BUILDS` and `OTA_MAX_AGE_DAYS` like successful builds.
 - **Delete** button on each row: removes from disk and disappears from the list (works from iPhone).
 
 Force manual cleanup:

@@ -247,48 +247,90 @@ def _fallback_build_label(entry: dict, build_dir: Path) -> str:
     return entry.get("dir") or build_dir.name
 
 
-def _build_entry_if_valid(build_dir: Path, project_id: str) -> dict | None:
-    if not build_dir.is_dir():
-        return None
-    ipa_file = _find_ipa_file(build_dir)
-    if ipa_file is None:
-        return None
-    summary = load_summary(build_dir)
+def _apply_summary_fields(entry: dict, summary: dict) -> None:
+    entry.update(
+        {
+            "status": summary.get("status"),
+            "branch": summary.get("branch"),
+            "commit": summary.get("commit"),
+            "date": summary.get("date"),
+            "version": summary.get("version"),
+            "build_number": summary.get("build_number"),
+            "install_url": summary.get("install_url"),
+            "manifest_url": summary.get("manifest_url"),
+            "ipa_url": summary.get("ipa_url"),
+            "duration_seconds": summary.get("duration_seconds"),
+            "ipa_size_bytes": summary.get("ipa_size_bytes"),
+            "stage": summary.get("stage"),
+        }
+    )
+    if summary.get("ipa_filename"):
+        entry["ipa_filename"] = summary["ipa_filename"]
+    if summary.get("build_label"):
+        entry["build_label"] = summary["build_label"]
+    if summary.get("configuration"):
+        entry["configuration"] = summary["configuration"]
+
+
+def _pick_log_filename(build_dir: Path) -> str | None:
+    for name in ("archive.log", "export.log", "build.log"):
+        if (build_dir / name).is_file():
+            return name
+    return None
+
+
+def _build_failure_entry(
+    build_dir: Path, project_id: str, summary: dict
+) -> dict:
     rel = f"{project_id}/{build_dir.name}"
-    ipa_filename = ipa_file.name
     entry: dict = {
         "dir": build_dir.name,
         "path": rel,
         "project_id": project_id,
-        "has_ipa": True,
-        "has_install": (build_dir / "install.html").is_file(),
+        "has_ipa": False,
+        "has_install": False,
+        "has_diagnostics": (build_dir / "diagnostics.md").is_file(),
         "configuration": _resolve_configuration(build_dir.name, summary),
-        "ipa_filename": ipa_filename,
     }
-    if summary:
-        entry.update(
-            {
-                "status": summary.get("status"),
-                "branch": summary.get("branch"),
-                "commit": summary.get("commit"),
-                "date": summary.get("date"),
-                "version": summary.get("version"),
-                "build_number": summary.get("build_number"),
-                "install_url": summary.get("install_url"),
-                "manifest_url": summary.get("manifest_url"),
-                "ipa_url": summary.get("ipa_url"),
-                "duration_seconds": summary.get("duration_seconds"),
-                "ipa_size_bytes": summary.get("ipa_size_bytes"),
-            }
-        )
-        if summary.get("ipa_filename"):
-            entry["ipa_filename"] = summary["ipa_filename"]
-        if summary.get("build_label"):
-            entry["build_label"] = summary["build_label"]
-        if summary.get("configuration"):
-            entry["configuration"] = summary["configuration"]
+    log_filename = _pick_log_filename(build_dir)
+    if log_filename:
+        entry["log_filename"] = log_filename
+        entry["has_log"] = True
+    else:
+        entry["has_log"] = False
+    _apply_summary_fields(entry, summary)
     entry["build_label"] = _fallback_build_label(entry, build_dir)
     return entry
+
+
+def _build_entry_if_valid(build_dir: Path, project_id: str) -> dict | None:
+    if not build_dir.is_dir():
+        return None
+
+    summary = load_summary(build_dir)
+    ipa_file = _find_ipa_file(build_dir)
+
+    if ipa_file is not None:
+        rel = f"{project_id}/{build_dir.name}"
+        ipa_filename = ipa_file.name
+        entry: dict = {
+            "dir": build_dir.name,
+            "path": rel,
+            "project_id": project_id,
+            "has_ipa": True,
+            "has_install": (build_dir / "install.html").is_file(),
+            "configuration": _resolve_configuration(build_dir.name, summary),
+            "ipa_filename": ipa_filename,
+        }
+        if summary:
+            _apply_summary_fields(entry, summary)
+        entry["build_label"] = _fallback_build_label(entry, build_dir)
+        return entry
+
+    if summary and summary.get("status") == "failure":
+        return _build_failure_entry(build_dir, project_id, summary)
+
+    return None
 
 
 def find_latest_build(
@@ -453,6 +495,70 @@ def _build_actions_menu(
     )
 
 
+def _build_failure_actions_menu(
+    *,
+    diagnostics: str,
+    log_url: str,
+    has_diagnostics: bool,
+    has_log: bool,
+    delete_action: str,
+    project_id: str,
+    build_dir: str,
+    confirm_msg: str = "Delete this build permanently?",
+) -> str:
+    if has_diagnostics:
+        primary = (
+            f'<a class="btn-primary action-split-primary" href="{html.escape(diagnostics)}">'
+            "Diagnostics</a>"
+        )
+    else:
+        primary = '<span class="btn-primary action-split-primary is-disabled">Diagnostics</span>'
+
+    menu_items: list[str] = []
+    if has_log:
+        menu_items.append(
+            f'<a class="action-menu-item" role="menuitem" href="{html.escape(log_url)}">'
+            "View log</a>"
+        )
+
+    delete_html = ""
+    if delete_action:
+        delete_html = (
+            '<div class="action-menu-divider" role="separator"></div>'
+            f'<form class="action-menu-form" method="POST" action="{html.escape(delete_action)}"'
+            f' onsubmit="return confirm(\'{confirm_msg}\');">'
+            f'<input type="hidden" name="project_id" value="{html.escape(project_id)}">'
+            f'<input type="hidden" name="build_dir" value="{html.escape(build_dir)}">'
+            '<button type="submit" class="action-menu-item action-menu-item-danger" '
+            'role="menuitem">Delete</button></form>'
+        )
+
+    menu_content = "".join(menu_items) + delete_html
+    has_menu = bool(menu_items) or bool(delete_html)
+
+    if has_menu:
+        dropdown = (
+            '<div class="action-dropdown">'
+            '<button type="button" class="action-dropdown-trigger" aria-label="More actions" '
+            'aria-expanded="false" aria-haspopup="menu">'
+            f"{_CHEVRON_SVG}"
+            "</button>"
+            f'<div class="action-dropdown-menu" role="menu" hidden>{menu_content}</div>'
+            "</div>"
+        )
+    else:
+        dropdown = ""
+
+    return (
+        '<div class="actions">'
+        '<div class="action-split">'
+        f"{primary}"
+        f"{dropdown}"
+        "</div>"
+        "</div>"
+    )
+
+
 def _build_badges(build: dict) -> str:
     badges: list[str] = []
     status = build.get("status")
@@ -544,26 +650,41 @@ def render_index(
             "<th>Version</th><th>Duration</th><th>Size</th><th>Actions</th></tr></thead><tbody>"
         )
         for b in builds:
+            is_failure = b.get("status") == "failure"
             ipa_filename = b.get("ipa_filename") or "app.ipa"
             install = u(b.get("install_url") or f"{base}/{b['path']}/install.html")
             ipa = u(b.get("ipa_url") or f"{base}/{b['path']}/{ipa_filename}")
-            archive_log = u(f"{base}/{b['path']}/archive.log")
+            log_filename = b.get("log_filename") or "archive.log"
+            log_url = u(f"{base}/{b['path']}/{log_filename}")
+            diagnostics = u(f"{base}/{b['path']}/diagnostics.md")
             label = html.escape(b.get("build_label") or b.get("dir", ""))
-            full_name = html.escape(b.get("ipa_filename") or "app.ipa")
+            full_name = html.escape(b.get("ipa_filename") or b.get("dir", ""))
             badges_html = _build_badges(b)
             confirm_msg = "Delete this build permanently?"
 
-            actions = _build_actions_menu(
-                install=install,
-                ipa=ipa,
-                archive_log=archive_log,
-                has_install=bool(b.get("has_install")),
-                has_ipa=bool(b.get("has_ipa")),
-                delete_action=delete_action,
-                project_id=project_id,
-                build_dir=b.get("dir", ""),
-                confirm_msg=confirm_msg,
-            )
+            if is_failure:
+                actions = _build_failure_actions_menu(
+                    diagnostics=diagnostics,
+                    log_url=log_url,
+                    has_diagnostics=bool(b.get("has_diagnostics")),
+                    has_log=bool(b.get("has_log")),
+                    delete_action=delete_action,
+                    project_id=project_id,
+                    build_dir=b.get("dir", ""),
+                    confirm_msg=confirm_msg,
+                )
+            else:
+                actions = _build_actions_menu(
+                    install=install,
+                    ipa=ipa,
+                    archive_log=log_url,
+                    has_install=bool(b.get("has_install")),
+                    has_ipa=bool(b.get("has_ipa")),
+                    delete_action=delete_action,
+                    project_id=project_id,
+                    build_dir=b.get("dir", ""),
+                    confirm_msg=confirm_msg,
+                )
 
             build_cell = (
                 f'<div class="build-name" title="{full_name}">'
@@ -572,9 +693,10 @@ def render_index(
 
             duration_cell = html.escape(_format_duration(b.get("duration_seconds")))
             size_cell = html.escape(_format_ipa_size(b.get("ipa_size_bytes")))
+            row_class = ' class="build-row-failed"' if is_failure else ""
 
             sections.append(
-                "<tr>"
+                f"<tr{row_class}>"
                 f"<td>{build_cell}</td>"
                 f"<td>{html.escape(b.get('branch') or '—')}</td>"
                 f"<td>{html.escape(b.get('commit') or '—')}</td>"
