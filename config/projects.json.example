@@ -7,7 +7,9 @@
       "scheme": "MyApp",
       "configuration": "Release",
       "bundle_id": "com.example.myapp",
-      "auto_increment_build": true
+      "auto_increment_build": true,
+      "repo_url": "https://github.com/user/my-app",
+      "repo_type": "github"
     }
   }
 }
