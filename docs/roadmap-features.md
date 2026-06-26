@@ -90,7 +90,7 @@ Some older builds on disk may have legacy `install.html` without the new theme. 
 
 | | |
 |---|---|
-| **Status** | In Progress |
+| **Status** | Done |
 | **Priority** | P0 |
 | **Effort** | S |
 | **Phase** | 1 |
@@ -109,17 +109,18 @@ Show QR only on viewports `min-width: 600px` (desktop/tablet) with helper text: 
 **Files likely touched**
 
 - `tools/generate_manifest.py`
-- New helper: `tools/qr_svg.py` (optional)
+- `tools/qr_svg.py` — SVG wrapper
+- `tools/qrcodegen.py` — vendored Nayuki encoder (MIT, zero pip deps)
 
 **Dependencies**  
 None.
 
 **Acceptance criteria**
 
-- [ ] QR appears on install page when opened on Mac/desktop browser
-- [ ] Scanning QR on iPhone opens the install flow in Safari
-- [ ] Token in URL is preserved correctly (no double-encoding)
-- [ ] No external network request required to render the page
+- [x] QR appears on install page when opened on Mac/desktop browser
+- [x] Scanning QR on iPhone opens the install flow in Safari
+- [x] Token in URL is preserved correctly (no double-encoding)
+- [x] No external network request required to render the page
 
 **Notes**  
 Do not QR-encode raw IPA URLs for install — use the `install.html` or manifest URL so Safari handles OTA correctly.
