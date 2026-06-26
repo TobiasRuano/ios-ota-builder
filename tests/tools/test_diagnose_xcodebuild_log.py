@@ -25,18 +25,18 @@ def test_extract_error_lines_deduplicates() -> None:
 
 
 def test_diagnose_provisioning_error() -> None:
-  log = Path(__file__).resolve().parent.parent.joinpath(
-      "fixtures", "provisioning_error.log"
-  ).read_text(encoding="utf-8")
-  category, summary, suggestion, errors = diagnose(log, "archive")
-  assert category == "provisioning"
-  assert "provisioning profile" in suggestion.lower() or "Provisioning" in suggestion
-  assert errors
+    log = Path(__file__).resolve().parent.parent.joinpath(
+        "fixtures", "provisioning_error.txt"
+    ).read_text(encoding="utf-8")
+    category, summary, suggestion, errors = diagnose(log, "archive")
+    assert category == "provisioning"
+    assert "provisioning profile" in suggestion.lower() or "Provisioning" in suggestion
+    assert errors
 
 
 def test_diagnose_spm_dependency_error() -> None:
     log = Path(__file__).resolve().parent.parent.joinpath(
-        "fixtures", "spm_error.log"
+        "fixtures", "spm_error.txt"
     ).read_text(encoding="utf-8")
     category, summary, suggestion, errors = diagnose(log, "archive")
     assert category == "dependencies"
