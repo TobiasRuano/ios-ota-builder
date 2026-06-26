@@ -387,7 +387,6 @@ def css_cards() -> str:
 }
 
 .app-icon,
-.build-icon,
 .install-app-icon {
   object-fit: cover;
   border: 1px solid var(--border-subtle);
@@ -398,13 +397,6 @@ def css_cards() -> str:
   width: 40px;
   height: 40px;
   border-radius: 9px;
-  flex-shrink: 0;
-}
-
-.build-icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
   flex-shrink: 0;
 }
 
@@ -562,9 +554,9 @@ table.builds-table tbody tr.build-row-failed:hover td {
 
 .build-name {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: .5rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .35rem;
   font-weight: 500;
 }
 
