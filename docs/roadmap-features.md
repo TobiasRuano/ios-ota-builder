@@ -971,7 +971,7 @@ F07 failure badge.
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P2 |
 | **Effort** | S |
 | **Phase** | 5 |
@@ -1000,9 +1000,9 @@ None.
 
 **Acceptance criteria**
 
-- [ ] Human-readable default output
-- [ ] `--json` for agents
-- [ ] Exit non-zero if server down or disk critically low (configurable)
+- [x] Human-readable default output
+- [x] `--json` for agents
+- [x] Exit non-zero if server down or disk critically low (configurable)
 
 ---
 
@@ -1011,7 +1011,7 @@ None.
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P3 |
 | **Effort** | S |
 | **Phase** | 5 |
@@ -1041,8 +1041,8 @@ F21 for `ota-status`.
 
 **Acceptance criteria**
 
-- [ ] SETUP.md includes copy-paste alias block
-- [ ] Aliases work when `OTA_BUILDER_ROOT` is set in shell profile
+- [x] SETUP.md includes copy-paste alias block
+- [x] Aliases work when `OTA_BUILDER_ROOT` is set in shell profile
 
 ---
 
