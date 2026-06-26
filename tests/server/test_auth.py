@@ -94,3 +94,9 @@ def test_wants_html_login_redirect_for_get_html() -> None:
 def test_safe_next_path_rejects_backslash() -> None:
     assert safe_next_path("/\\evil") == "/"
     assert safe_next_path("/%5cevil") == "/"
+
+
+def test_safe_next_path_rejects_api_routes() -> None:
+    assert safe_next_path("/api/login") == "/"
+    assert safe_next_path("/api/builds/delete") == "/"
+    assert safe_next_path("/api/builds/delete?token=x") == "/"
