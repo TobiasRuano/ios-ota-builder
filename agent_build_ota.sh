@@ -181,18 +181,34 @@ main() {
 
   read_archive_version "$ARCHIVE_PATH"
 
+  # F04: extract app icon (non-blocking)
+  ICON_REL_PATH=""
+  if python3 "$OTA_BUILDER_ROOT/tools/extract_app_icon.py" \
+    --archive "$ARCHIVE_PATH" \
+    --output "$BUILD_OUTPUT_DIR/icon.png" >&2 \
+    && [[ -f "$BUILD_OUTPUT_DIR/icon.png" ]]; then
+    ICON_REL_PATH="/$PROJECT_ID/$BUILD_DIR_NAME/icon.png"
+  fi
+
   # Manifest + install page
   BASE_URL="${OTA_BASE_URL%/}"
+  MANIFEST_ARGS=(
+    --build-dir "$BUILD_OUTPUT_DIR"
+    --base-url "$BASE_URL"
+    --project-id "$PROJECT_ID"
+    --build-dir-name "$BUILD_DIR_NAME"
+    --display-name "$DISPLAY_NAME"
+    --bundle-id "$BUNDLE_ID"
+    --bundle-version "${APP_VERSION}.${APP_BUILD}"
+    --ipa-filename "$IPA_FILENAME"
+    --access-token "${OTA_ACCESS_TOKEN:-}"
+  )
+  if [[ -n "$ICON_REL_PATH" ]]; then
+    MANIFEST_ARGS+=(--icon-filename icon.png)
+  fi
+
   if ! python3 "$OTA_BUILDER_ROOT/tools/generate_manifest.py" \
-    --build-dir "$BUILD_OUTPUT_DIR" \
-    --base-url "$BASE_URL" \
-    --project-id "$PROJECT_ID" \
-    --build-dir-name "$BUILD_DIR_NAME" \
-    --display-name "$DISPLAY_NAME" \
-    --bundle-id "$BUNDLE_ID" \
-    --bundle-version "${APP_VERSION}.${APP_BUILD}" \
-    --ipa-filename "$IPA_FILENAME" \
-    --access-token "${OTA_ACCESS_TOKEN:-}" \
+    "${MANIFEST_ARGS[@]}" \
     >&2; then
     FAILED_STAGE="manifest"
     exit "$EC_MANIFEST"
@@ -207,7 +223,7 @@ main() {
   IPA_SIZE_BYTES="$(stat -f%z "$BUILD_OUTPUT_DIR/$IPA_FILENAME" 2>/dev/null || echo 0)"
 
   DURATION=$(($(date +%s) - START_EPOCH))
-  write_summary_json "success" "" "$DURATION" "$INSTALL_URL" "$MANIFEST_URL" "$IPA_URL" "$APP_VERSION" "$APP_BUILD" "$DASHBOARD_URL" "$LATEST_INSTALL_URL" "$CONFIGURATION" "$IPA_SIZE_BYTES"
+  write_summary_json "success" "" "$DURATION" "$INSTALL_URL" "$MANIFEST_URL" "$IPA_URL" "$APP_VERSION" "$APP_BUILD" "$DASHBOARD_URL" "$LATEST_INSTALL_URL" "$CONFIGURATION" "$IPA_SIZE_BYTES" "$IPA_FILENAME" "$BUILD_LABEL" "$ICON_REL_PATH"
   BUILD_PUBLISHED=true
   export BUILD_PUBLISHED
 

@@ -379,6 +379,43 @@ def css_cards() -> str:
   border-bottom: 1px solid var(--border-subtle);
 }
 
+.project-title-row {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  min-width: 0;
+}
+
+.app-icon,
+.build-icon,
+.install-app-icon {
+  object-fit: cover;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-muted);
+}
+
+.app-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 9px;
+  flex-shrink: 0;
+}
+
+.build-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.install-app-icon {
+  display: block;
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 1rem;
+  border-radius: 16px;
+}
+
 .project-card h2 {
   margin: 0;
   font-size: 1.15rem;
