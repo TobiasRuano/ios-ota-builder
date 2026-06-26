@@ -21,9 +21,10 @@ usage() {
 Usage: agent_build_ota.sh [options] <project-id>
 
 Options:
-  --debug     Archive/export using Debug configuration (overrides projects.json)
-  --release   Archive/export using Release configuration (overrides projects.json)
-  -h, --help  Show this help
+  --debug              Archive/export using Debug configuration (overrides projects.json)
+  --release            Archive/export using Release configuration (overrides projects.json)
+  --workspace-path P   Build from this app repo path (e.g. a git worktree)
+  -h, --help           Show this help
 
 Examples:
   agent_build_ota.sh dev-quotes
@@ -35,6 +36,7 @@ EOF
 parse_args() {
   PROJECT_ID=""
   OTA_CONFIGURATION_OVERRIDE=""
+  OTA_WORKSPACE_PATH=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -45,6 +47,15 @@ parse_args() {
       --release)
         OTA_CONFIGURATION_OVERRIDE="Release"
         shift
+        ;;
+      --workspace-path)
+        if [[ $# -lt 2 ]]; then
+          log_error "--workspace-path requires a path argument"
+          usage
+          exit "$EC_ENVIRONMENT"
+        fi
+        OTA_WORKSPACE_PATH="$2"
+        shift 2
         ;;
       -h | --help)
         OTA_NOTIFY_SKIP=1
@@ -74,7 +85,7 @@ parse_args() {
     esac
   done
 
-  export OTA_CONFIGURATION_OVERRIDE PROJECT_ID
+  export OTA_CONFIGURATION_OVERRIDE PROJECT_ID OTA_WORKSPACE_PATH
 }
 
 on_exit() {
@@ -116,6 +127,14 @@ main() {
 
   load_config
   load_project "$PROJECT_ID"
+  if [[ -n "${OTA_WORKSPACE_PATH:-}" ]]; then
+    if [[ ! -d "$OTA_WORKSPACE_PATH" ]]; then
+      log_error "Workspace path not found: $OTA_WORKSPACE_PATH"
+      exit "$EC_ENVIRONMENT"
+    fi
+    PROJECT_PATH="$(cd "$OTA_WORKSPACE_PATH" && pwd)"
+    export PROJECT_PATH
+  fi
   git_metadata "$PROJECT_PATH"
   if ! check_git_worktree "$PROJECT_PATH"; then
     FAILED_STAGE="environment"

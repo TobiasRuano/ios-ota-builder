@@ -242,3 +242,38 @@ def test_render_index_omits_restart_controls_without_token() -> None:
     )
     assert '<button type="button" class="btn-restart-server"' not in html
     assert 'data-restart-action="/api/server/restart' not in html
+
+
+def test_render_build_panel_includes_controls() -> None:
+    from ota_index import render_build_panel
+
+    html = render_build_panel(
+        "my-app",
+        trigger_url="/api/builds/trigger?token=secret",
+        git_status_url="/api/git/status?token=secret&project=my-app",
+        git_branches_url="/api/git/branches?token=secret&project=my-app",
+        git_fetch_url="/api/git/fetch?token=secret",
+        jobs_url="/api/builds/jobs?token=secret",
+    )
+    assert "build-panel" in html
+    assert "Start build" in html
+    assert 'data-project-id="my-app"' in html
+
+
+def test_render_index_includes_build_panel_when_token_present() -> None:
+    data = {
+        "generated_at": "2025-06-26T12:00:00Z",
+        "projects": {"my-app": {"display_name": "My App", "builds": []}},
+    }
+    html = render_index(data, "https://ota.example.com", "secret")
+    assert "build-panel" in html
+    assert "btn-build-start" in html
+    assert "/api/builds/trigger?token=secret" in html
+    assert "window.__OTA_TOKEN" in html
+
+
+def test_render_index_omits_build_panel_without_token() -> None:
+    data = {"generated_at": "2025-06-26T12:00:00Z", "projects": {}}
+    html = render_index(data, "https://ota.example.com", None, enable_build=False)
+    assert 'class="build-panel"' not in html
+    assert 'class="btn-build-start"' not in html

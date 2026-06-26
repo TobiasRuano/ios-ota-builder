@@ -19,6 +19,25 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 from auth import get_access_token, request_authorized, send_unauthorized  # noqa: E402
 from build_delete import BuildDeleteError, delete_build  # noqa: E402
+from build_jobs import (  # noqa: E402
+    BuildJobError,
+    active_job_for_project,
+    create_job,
+    is_build_locked,
+    list_jobs,
+    log_path as job_log_path,
+    read_job,
+    schedule_job,
+)
+from git_api import (  # noqa: E402
+    GitApiError,
+    check_secrets_sync,
+    get_git_config,
+    get_project_repo_path,
+    git_fetch,
+    git_status,
+    list_branches,
+)
 from server_restart import schedule_restart  # noqa: E402
 from ota_index import (  # noqa: E402
     collect_builds,
@@ -171,6 +190,7 @@ class OTAHandler(SimpleHTTPRequestHandler):
             token,
             enable_delete=bool(token),
             enable_restart=bool(token),
+            enable_build=bool(token),
             server_status=self._server_status(),
         )
         self._send_bytes(200, html_body.encode("utf-8"), "text/html; charset=utf-8")
@@ -179,6 +199,131 @@ class OTAHandler(SimpleHTTPRequestHandler):
         data = self._index_data()
         body = json.dumps(data, indent=2).encode("utf-8") + b"\n"
         self._send_bytes(200, body, "application/json; charset=utf-8")
+
+    def _parse_json_body(self) -> dict:
+        length = int(self.headers.get("Content-Length", "0"))
+        raw = self.rfile.read(length) if length else b""
+        if not raw:
+            return {}
+        try:
+            data = json.loads(raw.decode("utf-8"))
+        except json.JSONDecodeError:
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def _send_json(self, status: int, payload: dict) -> None:
+        body = json.dumps(payload).encode("utf-8")
+        self._send_bytes(status, body, "application/json; charset=utf-8")
+
+    def _projects(self) -> dict:
+        return load_projects_config(self._projects_json())
+
+    def _handle_git_status(self) -> None:
+        parsed = urlparse(self.path)
+        project_id = parse_qs(parsed.query).get("project", [""])[0].strip()
+        try:
+            repo_path = get_project_repo_path(self._projects_json(), project_id)
+            git_cfg = get_git_config(self._projects_json(), project_id)
+            status = git_status(repo_path)
+            status["project_id"] = project_id
+            status["build_locked"] = is_build_locked(self._ota_dir(), project_id)
+            active = active_job_for_project(ROOT, project_id)
+            status["active_job"] = active
+            status["secrets"] = check_secrets_sync(repo_path, git_cfg["secrets_sync"])
+            self._send_json(200, status)
+        except (GitApiError, BuildJobError) as exc:
+            self._send_json(400, {"error": str(exc)})
+
+    def _handle_git_branches(self) -> None:
+        parsed = urlparse(self.path)
+        project_id = parse_qs(parsed.query).get("project", [""])[0].strip()
+        try:
+            repo_path = get_project_repo_path(self._projects_json(), project_id)
+            git_cfg = get_git_config(self._projects_json(), project_id)
+            branches = list_branches(repo_path, remote=git_cfg["remote"])
+            branches["project_id"] = project_id
+            self._send_json(200, branches)
+        except GitApiError as exc:
+            self._send_json(400, {"error": str(exc)})
+
+    def _handle_git_fetch(self) -> None:
+        form = self._parse_form_body()
+        if not form:
+            form = self._parse_json_body()
+        project_id = str(form.get("project_id", "")).strip()
+        try:
+            repo_path = get_project_repo_path(self._projects_json(), project_id)
+            git_cfg = get_git_config(self._projects_json(), project_id)
+            result = git_fetch(repo_path, remote=git_cfg["remote"])
+            result["project_id"] = project_id
+            self._send_json(200, result)
+        except GitApiError as exc:
+            self._send_json(400, {"error": str(exc)})
+
+    def _handle_build_trigger(self) -> None:
+        form = self._parse_form_body()
+        if not form:
+            form = self._parse_json_body()
+        project_id = str(form.get("project_id", "")).strip()
+        branch = str(form.get("branch", "")).strip()
+        git_mode = str(form.get("git_mode", "auto")).strip() or "auto"
+        configuration = str(form.get("configuration", "")).strip()
+        projects = self._projects()
+        allowed = set(projects.keys()) if projects else None
+
+        try:
+            if active_job_for_project(ROOT, project_id):
+                raise BuildJobError("a build job is already active for this project")
+            job = create_job(
+                ROOT,
+                project_id=project_id,
+                branch=branch,
+                git_mode=git_mode,
+                configuration=configuration,
+                allowed_projects=allowed,
+            )
+            schedule_job(ROOT, job["id"])
+            print(f"scheduled build job: {job['id']}", flush=True)
+            self._send_json(202, job)
+        except (BuildJobError, FileNotFoundError) as exc:
+            self._send_json(400, {"error": str(exc)})
+
+    def _handle_build_job_get(self, job_id: str) -> None:
+        job = read_job(ROOT, job_id)
+        if job is None:
+            self._send_json(404, {"error": "job not found"})
+            return
+        self._send_json(200, job)
+
+    def _handle_build_jobs_list(self) -> None:
+        parsed = urlparse(self.path)
+        project_id = parse_qs(parsed.query).get("project", [""])[0].strip()
+        jobs = list_jobs(ROOT, project_id=project_id, limit=20)
+        self._send_json(200, {"jobs": jobs})
+
+    def _handle_build_job_log(self, job_id: str) -> None:
+        job = read_job(ROOT, job_id)
+        if job is None:
+            self._send_json(404, {"error": "job not found"})
+            return
+        log_file = job_log_path(ROOT, job_id)
+        if not log_file.is_file():
+            self._send_bytes(200, b"", "text/plain; charset=utf-8")
+            return
+        content = log_file.read_text(encoding="utf-8", errors="replace")
+        tail = content[-50000:] if len(content) > 50000 else content
+        self._send_bytes(200, tail.encode("utf-8"), "text/plain; charset=utf-8")
+
+    def _parse_job_id(self, path: str) -> tuple[str | None, str | None]:
+        prefix = "/api/builds/jobs/"
+        if not path.startswith(prefix):
+            return None, None
+        rest = path[len(prefix) :]
+        if not rest:
+            return "", None
+        if rest.endswith("/log"):
+            return rest[: -len("/log")], "log"
+        return rest, "job"
 
     def _parse_form_body(self) -> dict[str, str]:
         length = int(self.headers.get("Content-Length", "0"))
@@ -240,6 +385,23 @@ class OTAHandler(SimpleHTTPRequestHandler):
         if path == "/builds.json":
             self._serve_dynamic_builds_json()
             return
+        if path == "/api/git/status":
+            self._handle_git_status()
+            return
+        if path == "/api/git/branches":
+            self._handle_git_branches()
+            return
+        if path == "/api/builds/jobs":
+            self._handle_build_jobs_list()
+            return
+        job_id, job_kind = self._parse_job_id(path)
+        if job_id is not None:
+            if job_kind == "log" and job_id:
+                self._handle_build_job_log(job_id)
+                return
+            if job_kind == "job" and job_id:
+                self._handle_build_job_get(job_id)
+                return
         latest_project = self._parse_latest_project(path)
         if latest_project is not None:
             self._serve_latest_redirect(latest_project)
@@ -273,6 +435,12 @@ class OTAHandler(SimpleHTTPRequestHandler):
             return
         if path == "/api/server/restart":
             self._handle_restart()
+            return
+        if path == "/api/git/fetch":
+            self._handle_git_fetch()
+            return
+        if path == "/api/builds/trigger":
+            self._handle_build_trigger()
             return
         self.send_error(404)
 
