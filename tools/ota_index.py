@@ -49,6 +49,96 @@ document.addEventListener("click", function (e) {
 });
 </script>"""
 
+_DROPDOWN_SCRIPT = """<script>
+(function () {
+  var GAP = 6;
+
+  function resetMenu(menu) {
+    menu.hidden = true;
+    menu.classList.remove("is-open", "action-dropdown-menu-up");
+    menu.style.position = "";
+    menu.style.top = "";
+    menu.style.bottom = "";
+    menu.style.right = "";
+    menu.style.left = "";
+    menu.style.minWidth = "";
+  }
+
+  function closeAllMenus() {
+    document.querySelectorAll(".action-dropdown-menu").forEach(resetMenu);
+    document.querySelectorAll(".action-dropdown-trigger").forEach(function (trigger) {
+      trigger.setAttribute("aria-expanded", "false");
+    });
+  }
+
+  function positionMenu(trigger, menu) {
+    menu.classList.remove("action-dropdown-menu-up");
+    menu.style.position = "fixed";
+    menu.style.left = "";
+    menu.style.top = "";
+    menu.style.bottom = "";
+
+    var rect = trigger.getBoundingClientRect();
+    menu.style.right = (window.innerWidth - rect.right) + "px";
+    menu.style.minWidth = Math.max(rect.width, 184) + "px";
+    menu.hidden = false;
+    menu.classList.add("is-open");
+
+    var menuHeight = menu.offsetHeight;
+    var spaceBelow = window.innerHeight - rect.bottom - GAP;
+    var spaceAbove = rect.top - GAP;
+
+    if (spaceBelow >= menuHeight || spaceBelow >= spaceAbove) {
+      menu.style.top = (rect.bottom + GAP) + "px";
+    } else {
+      menu.classList.add("action-dropdown-menu-up");
+      menu.style.bottom = (window.innerHeight - rect.top + GAP) + "px";
+    }
+  }
+
+  document.addEventListener("click", function (e) {
+    var trigger = e.target.closest(".action-dropdown-trigger");
+    if (trigger) {
+      e.stopPropagation();
+      var dropdown = trigger.closest(".action-dropdown");
+      var menu = dropdown.querySelector(".action-dropdown-menu");
+      var isOpen = !menu.hidden;
+      closeAllMenus();
+      if (!isOpen) {
+        positionMenu(trigger, menu);
+        trigger.setAttribute("aria-expanded", "true");
+      }
+      return;
+    }
+
+    if (e.target.closest(".action-menu-item")) {
+      closeAllMenus();
+      return;
+    }
+
+    if (!e.target.closest(".action-dropdown")) {
+      closeAllMenus();
+    }
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
+      closeAllMenus();
+    }
+  });
+
+  window.addEventListener("resize", closeAllMenus);
+  document.addEventListener("scroll", closeAllMenus, true);
+})();
+</script>"""
+
+_CHEVRON_SVG = (
+    '<svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true" focusable="false">'
+    '<path fill="currentColor" d="M4.427 6.573a.25.25 0 0 0-.035.385l3.85 3.85a.25.25 0 0 0 '
+    '.354 0l3.85-3.85a.25.25 0 0 0-.177-.427H4.604a.25.25 0 0 0-.177.073z"/>'
+    "</svg>"
+)
+
 
 def load_summary(build_dir: Path) -> dict | None:
     summary_path = build_dir / "summary.json"
@@ -238,13 +328,101 @@ def collect_builds(ota_dir: Path, projects_config: dict) -> dict:
     return result
 
 
-def _copy_button(url: str, *, aria_label: str, label: str = "Copy") -> str:
+def _copy_button(
+    url: str,
+    *,
+    aria_label: str,
+    label: str = "Copy",
+    menu_item: bool = False,
+) -> str:
+    classes = "action-menu-item btn-copy" if menu_item else "btn-copy"
+    role_attr = 'role="menuitem" ' if menu_item else ""
     return (
-        f'<button type="button" class="btn-copy" '
+        f'<button type="button" class="{classes}" '
+        f'{role_attr}'
         f'data-copy-url="{html.escape(url, quote=True)}" '
         f'data-copy-label="{html.escape(label)}" '
         f'data-copy-aria="{html.escape(aria_label)}" '
         f'aria-label="{html.escape(aria_label)}">{html.escape(label)}</button>'
+    )
+
+
+def _build_actions_menu(
+    *,
+    install: str,
+    ipa: str,
+    archive_log: str,
+    has_install: bool,
+    has_ipa: bool,
+    delete_action: str,
+    project_id: str,
+    build_dir: str,
+    confirm_msg: str = "Delete this build permanently?",
+) -> str:
+    can_install = has_install or has_ipa
+    if can_install:
+        primary = (
+            f'<a class="btn-primary action-split-primary" href="{html.escape(install)}">Install</a>'
+        )
+    else:
+        primary = (
+            f'<a class="btn-primary action-split-primary" href="{html.escape(ipa)}">'
+            "Download IPA</a>"
+        )
+
+    menu_items: list[str] = []
+    if can_install:
+        menu_items.append(
+            _copy_button(
+                install,
+                aria_label="Copy install link",
+                label="Copy install link",
+                menu_item=True,
+            )
+        )
+    menu_items.append(
+        f'<a class="action-menu-item" role="menuitem" href="{html.escape(ipa)}">Download IPA</a>'
+    )
+    menu_items.append(
+        _copy_button(
+            ipa,
+            aria_label="Copy IPA link",
+            label="Copy IPA link",
+            menu_item=True,
+        )
+    )
+    menu_items.append(
+        f'<a class="action-menu-item" role="menuitem" href="{html.escape(archive_log)}">'
+        "View log</a>"
+    )
+
+    delete_html = ""
+    if delete_action:
+        delete_html = (
+            '<div class="action-menu-divider" role="separator"></div>'
+            f'<form class="action-menu-form" method="POST" action="{html.escape(delete_action)}"'
+            f' onsubmit="return confirm(\'{confirm_msg}\');">'
+            f'<input type="hidden" name="project_id" value="{html.escape(project_id)}">'
+            f'<input type="hidden" name="build_dir" value="{html.escape(build_dir)}">'
+            '<button type="submit" class="action-menu-item action-menu-item-danger" '
+            'role="menuitem">Delete</button></form>'
+        )
+
+    menu_content = "".join(menu_items) + delete_html
+
+    return (
+        '<div class="actions">'
+        '<div class="action-split">'
+        f"{primary}"
+        '<div class="action-dropdown">'
+        '<button type="button" class="action-dropdown-trigger" aria-label="More actions" '
+        'aria-expanded="false" aria-haspopup="menu">'
+        f"{_CHEVRON_SVG}"
+        "</button>"
+        f'<div class="action-dropdown-menu" role="menu" hidden>{menu_content}</div>'
+        "</div>"
+        "</div>"
+        "</div>"
     )
 
 
@@ -345,22 +523,17 @@ def render_index(
             badges_html = _build_badges(b)
             confirm_msg = "Delete this build permanently?"
 
-            actions = '<div class="actions">'
-            if b.get("has_install") or b.get("has_ipa"):
-                actions += f'<a class="btn-primary" href="{html.escape(install)}">Install</a>'
-                actions += _copy_button(install, aria_label="Copy install link")
-            actions += f'<a class="link-accent" href="{html.escape(ipa)}">IPA</a>'
-            actions += _copy_button(ipa, aria_label="Copy IPA link")
-            actions += f'<a class="link-accent" href="{html.escape(archive_log)}">Log</a>'
-            if delete_action:
-                actions += (
-                    f'<form class="inline" method="POST" action="{html.escape(delete_action)}"'
-                    f' onsubmit="return confirm(\'{confirm_msg}\');">'
-                    f'<input type="hidden" name="project_id" value="{html.escape(project_id)}">'
-                    f'<input type="hidden" name="build_dir" value="{html.escape(b.get("dir", ""))}">'
-                    '<button type="submit" class="btn-danger">Delete</button></form>'
-                )
-            actions += "</div>"
+            actions = _build_actions_menu(
+                install=install,
+                ipa=ipa,
+                archive_log=archive_log,
+                has_install=bool(b.get("has_install")),
+                has_ipa=bool(b.get("has_ipa")),
+                delete_action=delete_action,
+                project_id=project_id,
+                build_dir=b.get("dir", ""),
+                confirm_msg=confirm_msg,
+            )
 
             build_cell = f'<div class="build-name"><span>{build_name}</span>{badges_html}</div>'
             if b.get("date") and not _is_compact_build_dir(b.get("dir", "")):
@@ -382,7 +555,7 @@ def render_index(
             )
         sections.append("</tbody></table></div></section>")
 
-    sections.append(f"</main>\n{_COPY_SCRIPT}\n</body></html>")
+    sections.append(f"</main>\n{_COPY_SCRIPT}\n{_DROPDOWN_SCRIPT}\n</body></html>")
     return "\n".join(sections)
 
 

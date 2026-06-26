@@ -211,9 +211,117 @@ form.inline { display: inline; margin: 0; }
 
 .actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: .5rem;
   align-items: center;
+}
+
+.action-split {
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.action-split-primary {
+  border-radius: 6px 0 0 6px;
+  border-right: 1px solid rgba(255, 255, 255, .25);
+}
+
+.action-dropdown {
+  position: relative;
+  display: inline-flex;
+}
+
+.action-dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: .4rem .55rem;
+  border: 1px solid var(--btn-primary);
+  border-left: none;
+  border-radius: 0 6px 6px 0;
+  background: var(--btn-primary);
+  color: #fff;
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.action-dropdown-trigger:hover {
+  background: var(--btn-primary-hover);
+  border-color: var(--btn-primary-hover);
+}
+
+.action-dropdown-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + .35rem);
+  z-index: 20;
+  min-width: 11.5rem;
+  padding: .35rem 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(15, 20, 25, .12);
+}
+
+.action-dropdown-menu.is-open {
+  position: fixed;
+  z-index: 1000;
+}
+
+.action-menu-item {
+  display: block;
+  width: 100%;
+  padding: .5rem 1rem;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+  font-size: .85rem;
+  font-weight: 500;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.action-menu-item:hover {
+  background: var(--surface-muted);
+  color: var(--text);
+}
+
+.action-menu-item-danger {
+  color: var(--danger);
+}
+
+.action-menu-item-danger:hover {
+  background: var(--badge-failed-bg);
+  color: var(--danger-hover);
+}
+
+.action-menu-divider {
+  margin: .35rem 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.action-menu-form {
+  margin: 0;
+}
+
+.action-menu-item.btn-copy {
+  border: none;
+  border-radius: 0;
+}
+
+.action-menu-item.btn-copy:hover {
+  border: none;
+}
+
+.action-menu-item.btn-copy.copied {
+  color: var(--success);
+  background: var(--surface-muted);
+}
+
+@media (max-width: 720px) {
+  .actions { align-items: flex-start; }
 }
 
 .btn-copy {
@@ -242,7 +350,7 @@ form.inline { display: inline; margin: 0; }
 }
 
 @media (max-width: 720px) {
-  .actions { flex-direction: column; align-items: flex-start; }
+  .actions:not(:has(.action-split)) { flex-direction: column; align-items: flex-start; }
 }
 """
 
