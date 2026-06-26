@@ -1,40 +1,40 @@
-# Migration — setup existente a config local
+# Migration — existing setup to local config
 
-Guía para operadores que ya tenían el pipeline antes de la plantilla pública.
+Guide for operators who already had the pipeline before the public template.
 
 ---
 
-## Qué cambió
+## What changed
 
-| Antes | Ahora |
+| Before | Now |
 |-------|-------|
-| `config/access.token` | `OTA_ACCESS_TOKEN` en `config/local.env` |
-| `OTA_BASE_URL` en `env.sh` | `config/local.env` |
-| `config/projects.json` commiteado | Gitignored; ejemplo en `.example` |
-| `server/cloudflared/config.yml` en repo | Template + render a `~/.cloudflared/` |
-| `launchd/*.plist` (paths personales) | Templates + `install_launchagents.sh` |
-| `config/ExportOptions.adhoc.plist` | Template + generación en runtime |
+| `config/access.token` | `OTA_ACCESS_TOKEN` in `config/local.env` |
+| `OTA_BASE_URL` in `env.sh` | `config/local.env` |
+| `config/projects.json` committed | Gitignored; example in `.example` |
+| `server/cloudflared/config.yml` in repo | Template + render to `~/.cloudflared/` |
+| `launchd/*.plist` (personal paths) | Templates + `install_launchagents.sh` |
+| `config/ExportOptions.adhoc.plist` | Template + runtime generation |
 
 ---
 
-## Migración automática
+## Automatic migration
 
 ```bash
 ./scripts/setup.sh
 ```
 
-Detecta valores legacy de:
+Detects legacy values from:
 
 - `config/access.token` → `OTA_ACCESS_TOKEN`
 - `config/projects.json` → `APPLE_TEAM_ID`
-- `server/cloudflared/config.yml` o `~/.cloudflared/config.yml` → hostname y tunnel ID
+- `server/cloudflared/config.yml` or `~/.cloudflared/config.yml` → hostname and tunnel ID
 - `config/ExportOptions.adhoc.plist` → `APPLE_TEAM_ID` (fallback)
 
-Tu `config/projects.json` existente **no se sobrescribe**.
+Your existing `config/projects.json` is **not overwritten**.
 
 ---
 
-## Después de migrar
+## After migrating
 
 ```bash
 ./server/setup_cloudflared.sh
@@ -43,18 +43,18 @@ Tu `config/projects.json` existente **no se sobrescribe**.
 ./scripts/verify_signing.sh <project-id>
 ```
 
-Si usabas LaunchAgents viejos con labels personalizados, descargalos antes de instalar los nuevos:
+If you used old LaunchAgents with custom labels, unload them before installing the new ones:
 
 ```bash
 launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/<old-label>.ota-server.plist 2>/dev/null || true
 launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/<old-label>.ota-cloudflared.plist 2>/dev/null || true
 ```
 
-Luego cargá los nuevos con `install_launchagents.sh`.
+Then load the new ones with `install_launchagents.sh`.
 
 ---
 
-## Publicar repo limpio
+## Publish a clean repo
 
 ```bash
 ./scripts/audit-public-safe.sh
@@ -64,4 +64,4 @@ git commit -m "Initial public template"
 git branch -D main && git branch -m main
 ```
 
-Rotá el token después de publicar: `./scripts/generate_access_token.sh`
+Rotate the token after publishing: `./scripts/generate_access_token.sh`

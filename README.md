@@ -1,14 +1,14 @@
 # ios-ota-builder
 
-Plantilla open source para compilar apps iOS (`.xcodeproj` + SPM), exportar un IPA **Ad Hoc** y publicarlo para instalación **OTA** desde el iPhone.
+Open-source template to build iOS apps (`.xcodeproj` + SPM), export an **Ad Hoc** IPA, and publish it for **OTA** installation from iPhone.
 
-**Build server:** Mac personal siempre encendida  
-**Distribución:** IPA + `manifest.plist` + Cloudflare Tunnel (HTTPS)  
-**Sin:** Bitrise, GitHub Actions, TestFlight (para iteración rápida)
+**Build server:** always-on personal Mac  
+**Distribution:** IPA + `manifest.plist` + Cloudflare Tunnel (HTTPS)  
+**Without:** Bitrise, GitHub Actions, TestFlight (for fast iteration)
 
 ---
 
-## Inicio rápido
+## Quick start
 
 ```bash
 git clone https://github.com/YOUR_USER/ios-ota-builder.git
@@ -16,14 +16,14 @@ cd ios-ota-builder
 ./scripts/setup.sh
 ```
 
-Luego seguí la guía completa en [`docs/SETUP.md`](docs/SETUP.md).
+Then follow the full guide in [`docs/SETUP.md`](docs/SETUP.md).
 
 ---
 
-## Arquitectura
+## Architecture
 
 ```
-Agente / vos
+Agent / you
     │
     ▼
 agent_build_ota.sh <project-id>
@@ -32,126 +32,126 @@ agent_build_ota.sh <project-id>
     │
     ├─► OTA-Builds/<project>/<build>/  (IPA, manifest, install.html)
     │
-    └─► Servidor local :8765 (Python)
+    └─► Local server :8765 (Python)
             │
             ▼
         cloudflared tunnel
             │
             ▼
-        https://ota.yourdomain.com  ──► Safari en iPhone
+        https://ota.yourdomain.com  ──► Safari on iPhone
 ```
 
-El pipeline **no modifica código** — solo compila y publica.
+The pipeline **does not modify source code** — it only builds and publishes.
 
 ---
 
-## Requisitos
+## Requirements
 
-| Componente | Notas |
+| Component | Notes |
 |------------|-------|
-| macOS | Mac siempre encendida |
-| Xcode | Cuenta Apple Developer logueada |
-| `jq`, `python3`, `git` | Preinstalados o vía Homebrew |
+| macOS | Always-on Mac |
+| Xcode | Apple Developer account signed in |
+| `jq`, `python3`, `git` | Preinstalled or via Homebrew |
 | `cloudflared` | `brew install cloudflared` |
-| Dominio en Cloudflare | Ej. `ota.yourdomain.com` |
-| iPhone registrado | UDID en Apple Developer (Ad Hoc) |
+| Cloudflare domain | e.g. `ota.yourdomain.com` |
+| Registered iPhone | UDID in Apple Developer (Ad Hoc) |
 
-Apps soportadas: `.xcodeproj`, Swift Package Manager, **sin** CocoaPods ni `.xcworkspace`.
+Supported apps: `.xcodeproj`, Swift Package Manager, **no** CocoaPods or `.xcworkspace`.
 
 ---
 
-## Uso diario
+## Daily usage
 
 ```bash
-# Release (default en projects.json)
+# Release (default in projects.json)
 ./agent_build_ota.sh my-app
 
-# Debug — iteración más rápida
+# Debug — faster iteration
 ./agent_build_ota.sh --debug my-app
 ```
 
-**Importante:** el argumento es el **`project-id`**, no la ruta del repo.
+**Important:** the argument is the **`project-id`**, not the repo path.
 
 ```bash
-# ✅ Correcto
+# ✅ Correct
 ./agent_build_ota.sh my-app
 
-# ❌ Incorrecto
+# ❌ Incorrect
 ./agent_build_ota.sh ~/Developer/my-app
 ```
 
-Obtener link de install (último build de un proyecto):
+Get install link (latest build for a project):
 
 ```bash
 ./scripts/print_install_url.sh my-app
 ```
 
-Ver **todos** los builds (dashboard con Install / IPA / logs por proyecto):
+View **all** builds (dashboard with Install / IPA / logs per project):
 
 ```bash
 ./scripts/print_dashboard_url.sh
 ```
 
-Abrí esa URL en el navegador y guardala como bookmark. Sin `?token=...` todo el servidor responde **401**.
+Open that URL in your browser and bookmark it. Without `?token=...` the entire server responds **401**.
 
 ---
 
-## Configuración
+## Configuration
 
-| Archivo | Commiteado | Descripción |
+| File | Committed | Description |
 |---------|------------|-------------|
-| `config/local.env.example` | Sí | Plantilla de secretos y globals |
-| `config/local.env` | **No** (gitignored) | Tu URL, token, team ID, tunnel |
-| `config/projects.json.example` | Sí | App de ejemplo |
-| `config/projects.json` | **No** (gitignored) | Tus apps reales |
-| `config/env.sh` | Sí | Loader genérico (sin secretos) |
+| `config/local.env.example` | Yes | Secrets and globals template |
+| `config/local.env` | **No** (gitignored) | Your URL, token, team ID, tunnel |
+| `config/projects.json.example` | Yes | Example app |
+| `config/projects.json` | **No** (gitignored) | Your real apps |
+| `config/env.sh` | Yes | Generic loader (no secrets) |
 
-Variables principales en `config/local.env`:
+Main variables in `config/local.env`:
 
-| Variable | Descripción |
+| Variable | Description |
 |----------|-------------|
-| `OTA_BASE_URL` | URL pública HTTPS |
-| `OTA_ACCESS_TOKEN` | Token de acceso al servidor OTA |
-| `APPLE_TEAM_ID` | Team ID de Apple Developer |
-| `OTA_HOSTNAME` | Hostname del tunnel Cloudflare |
-| `CLOUDFLARE_TUNNEL_ID` | UUID del tunnel |
+| `OTA_BASE_URL` | Public HTTPS URL |
+| `OTA_ACCESS_TOKEN` | OTA server access token |
+| `APPLE_TEAM_ID` | Apple Developer team ID |
+| `OTA_HOSTNAME` | Cloudflare tunnel hostname |
+| `CLOUDFLARE_TUNNEL_ID` | Tunnel UUID |
 
-`team_id` por proyecto en `projects.json` es opcional — hereda `APPLE_TEAM_ID` si falta.
-
----
-
-## Autenticación y dashboard
-
-El servidor OTA está **completamente** detrás de un token compartido:
-
-- Sin `?token=...` → **401** en cualquier ruta.
-- Con token → dashboard dinámico en `/` con todos los builds (Install, IPA, Log, **Delete**).
-
-Tras cada build, el JSON de stdout incluye:
-
-- `install_url` — para instalar en iPhone (Safari).
-- `dashboard_url` — para ver, descargar o borrar builds pasados (bookmark una vez).
-
-No hace falta terminal: el agente devuelve ambos links en el chat.
+`team_id` per project in `projects.json` is optional — inherits `APPLE_TEAM_ID` if missing.
 
 ---
 
-## Retención de builds
+## Authentication and dashboard
 
-Por defecto (`config/local.env`):
+The OTA server is **fully** behind a shared token:
 
-| Variable | Default | Efecto |
+- Without `?token=...` → **401** on any route.
+- With token → dynamic dashboard at `/` with all builds (Install, IPA, Log, **Delete**).
+
+After each build, stdout JSON includes:
+
+- `install_url` — to install on iPhone (Safari).
+- `dashboard_url` — to browse, download, or delete past builds (bookmark once).
+
+No terminal needed: the agent returns both links in chat.
+
+---
+
+## Build retention
+
+Defaults (`config/local.env`):
+
+| Variable | Default | Effect |
 |----------|---------|--------|
-| `OTA_KEEP_BUILDS` | `5` | Máximo de builds por proyecto |
-| `OTA_MAX_AGE_DAYS` | `7` | Borra builds más viejos |
+| `OTA_KEEP_BUILDS` | `5` | Maximum builds per project |
+| `OTA_MAX_AGE_DAYS` | `7` | Deletes older builds |
 
-Se ejecuta al final de cada build y **diariamente a las 03:00** (LaunchAgent `ota-cleanup`).
+Runs at the end of each build and **daily at 03:00** (LaunchAgent `ota-cleanup`).
 
-El dashboard refleja el disco al instante: borrado manual en Finder o botón **Delete** en la web.
+The dashboard reflects disk state instantly: manual deletion in Finder or **Delete** button on the web.
 
 ---
 
-## Servicios en background
+## Background services
 
 ```bash
 ./scripts/install_launchagents.sh
@@ -163,20 +163,20 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.local.ios-ota-builde
 
 ---
 
-## Agentes de IA
+## AI agents
 
-Instrucciones: [`docs/AGENT_INSTRUCTIONS.md`](docs/AGENT_INSTRUCTIONS.md)
+Instructions: [`docs/AGENT_INSTRUCTIONS.md`](docs/AGENT_INSTRUCTIONS.md)
 
-1. **Nunca** ejecutar `xcodebuild` directo
-2. Usar `agent_build_ota.sh <project-id>`
-3. Si falla: leer `diagnostics.md`, corregir código, reintentar (máx. 3)
-4. Devolver `install_url` y `dashboard_url` al usuario
+1. **Never** run `xcodebuild` directly
+2. Use `agent_build_ota.sh <project-id>`
+3. On failure: read `diagnostics.md`, fix code, retry (max 3)
+4. Return `install_url` and `dashboard_url` to the user
 
 ---
 
-## Auditoría pre-publicación
+## Pre-publication audit
 
-Antes de hacer push a un repo público:
+Before pushing to a public repo:
 
 ```bash
 ./scripts/audit-public-safe.sh
@@ -184,7 +184,7 @@ Antes de hacer push a un repo público:
 
 ---
 
-## Estructura del repo
+## Repository structure
 
 ```
 ios-ota-builder/
@@ -207,6 +207,6 @@ ios-ota-builder/
 
 ---
 
-## Licencia
+## License
 
-MIT — ver [`LICENSE`](LICENSE).
+MIT — see [`LICENSE`](LICENSE).
