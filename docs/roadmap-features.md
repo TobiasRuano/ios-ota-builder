@@ -246,7 +246,7 @@ No changes to `agent_build_ota.sh` — all logic stays in the manifest generator
 | **Phase** | 1 |
 
 **Problem**  
-Every build gets a unique folder name (`2026-06-25_2310_develop-debug`). Bookmarks and agent responses must be updated after each build.
+Every build gets a unique folder name (`25-06-142`, i.e. `DD-MM-{build_number}`). Bookmarks and agent responses must be updated after each build.
 
 **Proposed solution**  
 Add a dynamic route in `static_server.py`:

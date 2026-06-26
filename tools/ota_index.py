@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -57,6 +58,23 @@ def load_summary(build_dir: Path) -> dict | None:
         return json.loads(summary_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         return None
+
+
+_COMPACT_BUILD_DIR_RE = re.compile(r"^\d{2}-\d{2}-\d+$")
+
+
+def _is_compact_build_dir(name: str) -> bool:
+    return bool(_COMPACT_BUILD_DIR_RE.match(name))
+
+
+def _build_sort_key(entry: dict, build_dir: Path) -> float:
+    date_str = entry.get("date")
+    if date_str:
+        try:
+            return datetime.fromisoformat(str(date_str).replace("Z", "+00:00")).timestamp()
+        except ValueError:
+            pass
+    return build_dir.stat().st_mtime
 
 
 def _resolve_configuration(build_dir_name: str, summary: dict | None) -> str | None:
@@ -151,18 +169,22 @@ def find_latest_build(
     if not project_dir.is_dir():
         return None
 
-    for build_dir in sorted(project_dir.iterdir(), reverse=True):
+    candidates: list[tuple[dict, float]] = []
+    for build_dir in project_dir.iterdir():
         entry = _build_entry_if_valid(build_dir, project_id)
-        if entry is None:
+        if entry is None or entry.get("status") != "success":
             continue
-        if entry.get("status") != "success":
-            continue
-        return {
-            "project_id": project_id,
-            "build_dir": entry["dir"],
-            "path": entry["path"],
-        }
-    return None
+        candidates.append((entry, _build_sort_key(entry, build_dir)))
+
+    if not candidates:
+        return None
+
+    entry = max(candidates, key=lambda item: item[1])[0]
+    return {
+        "project_id": project_id,
+        "build_dir": entry["dir"],
+        "path": entry["path"],
+    }
 
 
 
@@ -176,10 +198,13 @@ def collect_builds(ota_dir: Path, projects_config: dict) -> dict:
         project_dir = ota_dir / project_id
         builds: list[dict] = []
         if project_dir.is_dir():
-            for build_dir in sorted(project_dir.iterdir(), reverse=True):
+            ranked: list[tuple[dict, float]] = []
+            for build_dir in project_dir.iterdir():
                 entry = _build_entry_if_valid(build_dir, project_id)
                 if entry is not None:
-                    builds.append(entry)
+                    ranked.append((entry, _build_sort_key(entry, build_dir)))
+            ranked.sort(key=lambda item: item[1], reverse=True)
+            builds = [entry for entry, _ in ranked]
 
         latest_marked = False
         for entry in builds:
@@ -320,7 +345,7 @@ def render_index(
             actions += "</div>"
 
             build_cell = f'<div class="build-name"><span>{build_name}</span>{badges_html}</div>'
-            if b.get("date"):
+            if b.get("date") and not _is_compact_build_dir(b.get("dir", "")):
                 build_cell += f'<br><span class="muted">{html.escape(b.get("date") or "")}</span>'
 
             duration_cell = html.escape(_format_duration(b.get("duration_seconds")))

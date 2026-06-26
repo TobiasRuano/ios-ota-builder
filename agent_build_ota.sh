@@ -134,6 +134,8 @@ main() {
       FAILED_STAGE="environment"
       exit "$EC_ENVIRONMENT"
     fi
+    OTA_BUILD_NUMBER="$("$OTA_BUILDER_ROOT/scripts/resolve_build_number.sh" resolve)"
+    export OTA_BUILD_NUMBER
   fi
 
   # Optional: warn if server down (non-blocking for local builds)
