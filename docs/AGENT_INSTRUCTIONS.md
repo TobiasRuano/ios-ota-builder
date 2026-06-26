@@ -45,7 +45,7 @@ agent_build_ota.sh --release my-app  # force Release
 ```
 Modify code
     ↓
-If Python changed in server/ or tools/ → ./scripts/run_tests.sh
+If Python changed in server/ or tools/, or shell helpers in scripts/lib/ → ./scripts/run_tests.sh
     ↓
 agent_build_ota.sh <project-id>
     ↓
