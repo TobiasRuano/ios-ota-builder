@@ -541,6 +541,37 @@ def _format_duration(seconds: int | float | None) -> str:
     return f"{hours}h {minutes}m"
 
 
+def commit_url(
+    repo_url: str | None,
+    repo_type: str | None,
+    sha: str | None,
+) -> str | None:
+    if not repo_url or not sha or sha == "unknown":
+        return None
+    base = repo_url.rstrip("/")
+    provider = (repo_type or "github").lower()
+    if provider == "gitlab":
+        return f"{base}/-/commit/{sha}"
+    return f"{base}/commit/{sha}"
+
+
+def _format_commit_cell(build: dict, project: dict) -> str:
+    short_commit = build.get("commit")
+    link_sha = build.get("commit_full") or short_commit
+    if not link_sha or link_sha == "unknown":
+        return "—"
+
+    display = str(short_commit or link_sha)
+    url = commit_url(project.get("repo_url"), project.get("repo_type"), str(link_sha))
+    if url:
+        return (
+            f'<a href="{html.escape(url, quote=True)}" '
+            f'target="_blank" rel="noopener noreferrer">'
+            f"{html.escape(display)}</a>"
+        )
+    return html.escape(display)
+
+
 def _format_ipa_size(bytes_: int | None) -> str:
     if bytes_ is None:
         return "—"
@@ -621,6 +652,7 @@ def _apply_summary_fields(entry: dict, summary: dict) -> None:
             "status": summary.get("status"),
             "branch": summary.get("branch"),
             "commit": summary.get("commit"),
+            "commit_full": summary.get("commit_full"),
             "date": summary.get("date"),
             "version": summary.get("version"),
             "build_number": summary.get("build_number"),
@@ -771,6 +803,8 @@ def collect_builds(ota_dir: Path, projects_config: dict) -> dict:
 
         result["projects"][project_id] = {
             "display_name": meta.get("display_name", project_id),
+            "repo_url": meta.get("repo_url"),
+            "repo_type": meta.get("repo_type", "github"),
             "builds": builds,
         }
 
@@ -1372,11 +1406,12 @@ def render_index(
                 f"<tr{row_class}>"
                 f"<td>{build_cell}</td>"
                 f"{_truncate_table_cell(b.get('branch'), data_label='Branch')}"
-                f"{_truncate_table_cell(b.get('commit'), data_label='Commit')}"
+                f'<td class="cell-truncate" data-label="Commit">'
+                f"{_format_commit_cell(b, project)}</td>"
                 f'<td class="cell-nowrap" data-label="Version">{version_cell}</td>'
                 f'<td class="meta-cell" data-label="Duration">{duration_cell}</td>'
                 f'<td class="meta-cell" data-label="Size">{size_cell}</td>'
-                f"<td>{actions}</td></tr>"
+                f'<td class="cell-actions">{actions}</td></tr>'
             )
         sections.append("</tbody></table></div></section>")
 

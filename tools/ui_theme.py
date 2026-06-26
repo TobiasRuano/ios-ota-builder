@@ -795,6 +795,11 @@ table.builds-table tbody tr.build-row-failed:hover td {
     padding: .75rem 1rem 1rem;
     border-top: 1px solid var(--border-subtle);
     border-bottom: none;
+    text-align: left;
+  }
+
+  table.builds-table td.cell-actions .actions {
+    justify-content: flex-start;
   }
 
   table.builds-table td.meta-cell {

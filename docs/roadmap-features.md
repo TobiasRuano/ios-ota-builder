@@ -527,7 +527,7 @@ None.
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P2 |
 | **Effort** | S |
 | **Phase** | 2 |
@@ -563,10 +563,10 @@ None.
 
 **Acceptance criteria**
 
-- [ ] Commits link correctly for `repo_type: github`
-- [ ] Commits link correctly for `repo_type: gitlab` (`/-/commit/` path)
-- [ ] Projects without `repo_url` unchanged
-- [ ] Example config documents `repo_url` and `repo_type`
+- [x] Commits link correctly for `repo_type: github`
+- [x] Commits link correctly for `repo_type: gitlab` (`/-/commit/` path)
+- [x] Projects without `repo_url` unchanged
+- [x] Example config documents `repo_url` and `repo_type`
 
 ---
 

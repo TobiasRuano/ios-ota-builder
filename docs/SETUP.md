@@ -64,6 +64,17 @@ Edit `config/projects.json`:
 }
 ```
 
+Optional per-project fields:
+
+| Field | Description |
+|-------|-------------|
+| `team_id` | Apple Team ID (overrides `APPLE_TEAM_ID` from `local.env`) |
+| `auto_increment_build` | When `true`, pipeline bumps `CFBundleVersion` automatically |
+| `repo_url` | Base URL of the app’s git repo (e.g. `https://github.com/user/my-app`) — enables clickable commit links on the dashboard |
+| `repo_type` | `github` (default) or `gitlab` — commit link path format |
+
+If `repo_url` is omitted, commit hashes stay plain text on the dashboard.
+
 `team_id` is optional if `APPLE_TEAM_ID` is set in `local.env`.
 
 List IDs:

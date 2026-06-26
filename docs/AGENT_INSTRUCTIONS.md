@@ -85,6 +85,7 @@ Stable install URL for bookmarks:
   "project": "my-app",
   "branch": "main",
   "commit": "abc1234",
+  "commit_full": "abc1234567890abcdef1234567890abcdef12345678",
   "duration_seconds": 312,
   "install_url": "https://ota.example.com/my-app/25-06-142/install.html?token=...",
   "latest_install_url": "https://ota.example.com/latest/my-app?token=...",
@@ -100,6 +101,9 @@ Stable install URL for bookmarks:
 - `latest_install_url` is a stable redirect (`GET /latest/<project-id>`) to the newest successful build — safe to bookmark for agents and testers.
 
 When `auto_increment_build` is enabled, `build_number` reflects the overridden `CFBundleVersion` for that OTA build.
+
+- `commit` — short git SHA shown in the dashboard.
+- `commit_full` — full SHA (optional on older builds); used for commit links when `repo_url` is set in `projects.json`.
 
 ## Failure output
 

@@ -178,11 +178,33 @@ git_metadata() {
   if git -C "$repo_path" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     GIT_BRANCH="$(git -C "$repo_path" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
     GIT_COMMIT="$(git -C "$repo_path" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+    GIT_COMMIT_FULL="$(git -C "$repo_path" rev-parse HEAD 2>/dev/null || echo unknown)"
   else
     GIT_BRANCH="unknown"
     GIT_COMMIT="unknown"
+    GIT_COMMIT_FULL="unknown"
   fi
-  export GIT_BRANCH GIT_COMMIT
+  export GIT_BRANCH GIT_COMMIT GIT_COMMIT_FULL
+}
+
+commit_url() {
+  local repo_url="${1:-}"
+  local repo_type="${2:-github}"
+  local sha="${3:-}"
+
+  if [[ -z "$repo_url" || -z "$sha" || "$sha" == "unknown" ]]; then
+    return 0
+  fi
+
+  repo_url="${repo_url%/}"
+  case "$repo_type" in
+    gitlab)
+      printf '%s/-/commit/%s' "$repo_url" "$sha"
+      ;;
+    github | *)
+      printf '%s/commit/%s' "$repo_url" "$sha"
+      ;;
+  esac
 }
 
 check_git_worktree() {
@@ -489,6 +511,7 @@ write_summary_json() {
     --arg display_name "$DISPLAY_NAME" \
     --arg branch "$GIT_BRANCH" \
     --arg commit "$GIT_COMMIT" \
+    --arg commit_full "${GIT_COMMIT_FULL:-}" \
     --arg date "$now" \
     --argjson duration "$duration" \
     --arg install_url "$install_url" \
@@ -512,6 +535,7 @@ write_summary_json() {
       display_name: $display_name,
       branch: $branch,
       commit: $commit,
+      commit_full: (if $commit_full == "" or $commit_full == "unknown" then null else $commit_full end),
       date: $date,
       duration_seconds: $duration,
       install_url: $install_url,
