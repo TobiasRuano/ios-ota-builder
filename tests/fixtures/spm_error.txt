@@ -1,0 +1,6 @@
+=== archive.log ===
+Resolving package dependencies...
+error: unable to resolve package dependency 'SomePackage'
+
+=== export.log ===
+EXPORT FAILED
