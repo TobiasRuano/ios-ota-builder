@@ -622,6 +622,117 @@ table.builds-table tbody tr.build-row-failed:hover td {
   font: 500 .82rem "IBM Plex Mono", monospace;
   color: var(--muted);
 }
+
+@media (max-width: 720px) {
+  .table-wrap {
+    overflow-x: visible;
+    padding: 0 1rem 1.25rem;
+  }
+
+  table.builds-table,
+  table.builds-table tbody {
+    display: block;
+  }
+
+  table.builds-table thead {
+    display: none;
+  }
+
+  table.builds-table tbody tr {
+    display: block;
+    margin-bottom: .75rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+
+  table.builds-table tbody tr:last-child {
+    margin-bottom: 0;
+  }
+
+  table.builds-table tbody tr:hover td {
+    background: transparent;
+  }
+
+  table.builds-table tbody tr.build-row-failed {
+    background: color-mix(in srgb, var(--badge-failed-bg) 35%, var(--surface));
+  }
+
+  table.builds-table tbody tr.build-row-failed:hover {
+    background: color-mix(in srgb, var(--badge-failed-bg) 55%, var(--surface));
+  }
+
+  table.builds-table td {
+    display: grid;
+    grid-template-columns: 5.5rem 1fr;
+    gap: .35rem .75rem;
+    align-items: baseline;
+    padding: .5rem 1rem;
+    border-bottom: 1px solid var(--border-subtle);
+    white-space: normal;
+  }
+
+  table.builds-table td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font: 500 .72rem "IBM Plex Mono", monospace;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+
+  table.builds-table td:first-child,
+  table.builds-table td:last-child {
+    display: block;
+    grid-template-columns: none;
+  }
+
+  table.builds-table td:first-child::before,
+  table.builds-table td:last-child::before {
+    content: none;
+  }
+
+  table.builds-table td:first-child {
+    padding: 1rem 1rem .65rem;
+    border-bottom: none;
+  }
+
+  table.builds-table td:last-child {
+    padding: .75rem 1rem 1rem;
+    border-top: 1px solid var(--border-subtle);
+    border-bottom: none;
+  }
+
+  table.builds-table td.meta-cell {
+    white-space: normal;
+    font: 500 .82rem "IBM Plex Mono", monospace;
+    color: var(--text);
+  }
+
+  table.builds-table .build-name {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  table.builds-table .actions {
+    width: 100%;
+  }
+
+  table.builds-table .action-split {
+    display: flex;
+    width: 100%;
+  }
+
+  table.builds-table .action-split-primary {
+    flex: 1;
+    text-align: center;
+  }
+
+  .project-card-header .btn-copy {
+    width: 100%;
+    text-align: center;
+  }
+}
 """
 
 

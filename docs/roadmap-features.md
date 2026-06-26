@@ -490,7 +490,7 @@ None.
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P2 |
 | **Effort** | M |
 | **Phase** | 2 |
@@ -516,9 +516,9 @@ None.
 
 **Acceptance criteria**
 
-- [ ] Dashboard readable on iPhone without horizontal scroll
-- [ ] All actions (Install, IPA, Log, Delete) reachable on mobile
-- [ ] Desktop table layout unchanged
+- [x] Dashboard readable on iPhone without horizontal scroll
+- [x] All actions (Install, IPA, Log, Delete) reachable on mobile
+- [x] Desktop table layout unchanged
 
 ---
 

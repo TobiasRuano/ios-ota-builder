@@ -67,7 +67,7 @@ flowchart LR
 | F06 | Copy-to-clipboard links | 1 | P0 | S | Done | [F06](roadmap-features.md#f06) |
 | F07 | Visual badges (Debug/Release, latest) | 1 | P0 | S | Done | [F07](roadmap-features.md#f07) |
 | F08 | Table metadata (size, duration, config) | 2 | P1 | S | Done | [F08](roadmap-features.md#f08) |
-| F09 | Mobile-friendly dashboard layout | 2 | P2 | M | Planned | [F09](roadmap-features.md#f09) |
+| F09 | Mobile-friendly dashboard layout | 2 | P2 | M | Done | [F09](roadmap-features.md#f09) |
 | F10 | Commit links via `repo_url` | 2 | P2 | S | Planned | [F10](roadmap-features.md#f10) |
 | F11 | Dark mode | 2 | P3 | S | Done | [F11](roadmap-features.md#f11) |
 | F12 | Auto-increment build number | 1 | P0 | M | Done | [F12](roadmap-features.md#f12) |
