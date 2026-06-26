@@ -174,6 +174,12 @@ Instructions: [`docs/AGENT_INSTRUCTIONS.md`](docs/AGENT_INSTRUCTIONS.md)
 
 ---
 
+## Roadmap
+
+Planned improvements and detailed specs: [`docs/roadmap.md`](docs/roadmap.md) · [`docs/roadmap-features.md`](docs/roadmap-features.md)
+
+---
+
 ## Pre-publication audit
 
 Before pushing to a public repo:
@@ -202,7 +208,9 @@ ios-ota-builder/
 ├── launchd/*.plist.template
 └── docs/
     ├── SETUP.md
-    └── AGENT_INSTRUCTIONS.md
+    ├── AGENT_INSTRUCTIONS.md
+    ├── roadmap.md
+    └── roadmap-features.md
 ```
 
 ---
