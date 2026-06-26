@@ -14,6 +14,7 @@ export/
 # Private operator config (never commit)
 config/local.env
 config/projects.json
+config/build_counters.json
 config/access.token
 config/.ExportOptions.adhoc.generated.plist
 config/cloudflared.local.yml

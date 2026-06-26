@@ -118,7 +118,12 @@ load_project() {
     CONFIGURATION="$OTA_CONFIGURATION_OVERRIDE"
   fi
 
-  export PROJECT_ID DISPLAY_NAME PROJECT_PATH XCODEPROJ SCHEME CONFIGURATION BUNDLE_ID TEAM_ID
+  AUTO_INCREMENT_BUILD="$(jq -r --arg id "$project_id" '.projects[$id].auto_increment_build // false' "$config_file")"
+  if [[ "$AUTO_INCREMENT_BUILD" != "true" ]]; then
+    AUTO_INCREMENT_BUILD="false"
+  fi
+
+  export PROJECT_ID DISPLAY_NAME PROJECT_PATH XCODEPROJ SCHEME CONFIGURATION BUNDLE_ID TEAM_ID AUTO_INCREMENT_BUILD
 }
 
 slugify() {

@@ -40,18 +40,36 @@ fi
 log "Dependencies resolved."
 
 log "Archiving $SCHEME ($CONFIGURATION)..."
+if [[ -n "${OTA_BUILD_NUMBER:-}" ]]; then
+  log "Using build number override: $OTA_BUILD_NUMBER"
+fi
 set +e
-"$XCODEBUILD" archive \
-  -project "$PROJECT_FILE" \
-  -scheme "$SCHEME" \
-  -configuration "$CONFIGURATION" \
-  -archivePath "$ARCHIVE_PATH" \
-  -destination 'generic/platform=iOS' \
-  -derivedDataPath "$DERIVED_DATA" \
-  DEVELOPMENT_TEAM="$TEAM_ID" \
-  CODE_SIGN_STYLE=Automatic \
-  -allowProvisioningUpdates \
-  >>"$ARCHIVE_LOG" 2>&1
+if [[ -n "${OTA_BUILD_NUMBER:-}" ]]; then
+  "$XCODEBUILD" archive \
+    -project "$PROJECT_FILE" \
+    -scheme "$SCHEME" \
+    -configuration "$CONFIGURATION" \
+    -archivePath "$ARCHIVE_PATH" \
+    -destination 'generic/platform=iOS' \
+    -derivedDataPath "$DERIVED_DATA" \
+    DEVELOPMENT_TEAM="$TEAM_ID" \
+    CODE_SIGN_STYLE=Automatic \
+    CURRENT_PROJECT_VERSION="$OTA_BUILD_NUMBER" \
+    -allowProvisioningUpdates \
+    >>"$ARCHIVE_LOG" 2>&1
+else
+  "$XCODEBUILD" archive \
+    -project "$PROJECT_FILE" \
+    -scheme "$SCHEME" \
+    -configuration "$CONFIGURATION" \
+    -archivePath "$ARCHIVE_PATH" \
+    -destination 'generic/platform=iOS' \
+    -derivedDataPath "$DERIVED_DATA" \
+    DEVELOPMENT_TEAM="$TEAM_ID" \
+    CODE_SIGN_STYLE=Automatic \
+    -allowProvisioningUpdates \
+    >>"$ARCHIVE_LOG" 2>&1
+fi
 ARCHIVE_EC=$?
 set -e
 

@@ -115,6 +115,11 @@ main() {
   make_build_dir
   export PROJECT_ID BUILD_OUTPUT_DIR
 
+  if [[ "${AUTO_INCREMENT_BUILD:-false}" == "true" ]]; then
+    OTA_BUILD_NUMBER="$("$OTA_BUILDER_ROOT/scripts/resolve_build_number.sh" resolve)"
+    export OTA_BUILD_NUMBER
+  fi
+
   # Archive
   if ! "$OTA_BUILDER_ROOT/scripts/build_archive.sh"; then
     FAILED_STAGE="archive"
@@ -157,6 +162,10 @@ main() {
   if ! "$OTA_BUILDER_ROOT/scripts/cleanup_ota.sh" >&2; then
     FAILED_STAGE="index"
     exit "$EC_INDEX"
+  fi
+
+  if [[ "${AUTO_INCREMENT_BUILD:-false}" == "true" ]]; then
+    "$OTA_BUILDER_ROOT/scripts/resolve_build_number.sh" commit
   fi
 
   trap - EXIT

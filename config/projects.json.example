@@ -6,7 +6,8 @@
       "xcodeproj": "MyApp.xcodeproj",
       "scheme": "MyApp",
       "configuration": "Release",
-      "bundle_id": "com.example.myapp"
+      "bundle_id": "com.example.myapp",
+      "auto_increment_build": true
     }
   }
 }
