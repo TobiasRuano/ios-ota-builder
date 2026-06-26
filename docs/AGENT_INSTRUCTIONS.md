@@ -67,7 +67,7 @@ Automated tests cover Python (`server/`, `tools/`) and shell pipeline helpers. R
 
 - Works on **Linux** (Cursor Cloud) and **macOS** — no Xcode required.
 - Installs `pytest` from `requirements-dev.txt` on first run.
-- Runs **pytest** (59+ tests) then **shell regression scripts** in `scripts/test_*.sh` (e.g. F15 `notify_build_result`).
+- Runs **pytest** (59+ tests) then **shell regression scripts** in `scripts/test_*.sh` (e.g. F15 `notify_build_result`, F17 `test_build_stage`).
 - Pass arguments to run only pytest subsets: `./scripts/run_tests.sh tests/tools/test_ota_index.py`
 - Full iOS pipeline validation (`agent_build_ota.sh`) still requires your Mac with Xcode.
 

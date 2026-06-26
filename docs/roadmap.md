@@ -75,7 +75,7 @@ flowchart LR
 | F14 | Per-project build lock | 4 | P2 | S | Done | [F14](roadmap-features.md#f14) |
 | F15 | Build completion notifications | 1 | P1 | S | Done | [F15](roadmap-features.md#f15) |
 | F16 | `--dry-run` preflight | 4 | P2 | S | Planned | [F16](roadmap-features.md#f16) |
-| F17 | Live build progress | 4 | P2 | M | Planned | [F17](roadmap-features.md#f17) |
+| F17 | Live build progress | 4 | P2 | M | Done | [F17](roadmap-features.md#f17) |
 | F18 | `/health` endpoint | 5 | P2 | S | Done | [F18](roadmap-features.md#f18) |
 | F19 | Server status panel | 5 | P2 | M | Done | [F19](roadmap-features.md#f19) |
 | F20 | Failed builds in dashboard | 5 | P2 | M | Done | [F20](roadmap-features.md#f20) |

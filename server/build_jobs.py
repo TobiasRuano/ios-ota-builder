@@ -13,6 +13,36 @@ JOB_ID_RE = re.compile(r"^[a-zA-Z0-9._-]+$")
 BRANCH_RE = re.compile(r"^[a-zA-Z0-9/_.-]+$")
 GIT_MODES = frozenset({"auto", "checkout", "stash_checkout", "worktree"})
 
+STAGE_MARKER_RE = re.compile(r"^\[stage\]\s+(\S+)", re.MULTILINE)
+
+STAGE_PROGRESS: dict[str, int] = {
+    "queued": 5,
+    "preparing": 10,
+    "environment": 12,
+    "resolving_spm": 28,
+    "archiving": 50,
+    "exporting": 68,
+    "publishing": 85,
+    "indexing": 95,
+}
+
+STAGE_LABELS: dict[str, str] = {
+    "queued": "Queued",
+    "preparing": "Preparing",
+    "environment": "Environment checks",
+    "resolving_spm": "Resolving dependencies",
+    "archiving": "Archiving",
+    "exporting": "Exporting IPA",
+    "publishing": "Publishing",
+    "indexing": "Updating index",
+}
+
+JOB_STATUS_STAGE: dict[str, str] = {
+    "queued": "queued",
+    "preparing": "preparing",
+    "building": "environment",
+}
+
 
 class BuildJobError(ValueError):
     pass
@@ -152,8 +182,87 @@ def list_jobs(root: Path, *, project_id: str = "", limit: int = 20) -> list[dict
 def active_job_for_project(root: Path, project_id: str) -> dict | None:
     for job in list_jobs(root, project_id=project_id, limit=50):
         if job.get("status") in {"queued", "preparing", "building"}:
-            return job
+            return enrich_job_with_progress(root, job)
     return None
+
+
+def parse_job_stage(log_file: Path) -> str | None:
+    if not log_file.is_file():
+        return None
+    content = log_file.read_text(encoding="utf-8", errors="replace")
+    tail = content[-50000:] if len(content) > 50000 else content
+    matches = STAGE_MARKER_RE.findall(tail)
+    return matches[-1] if matches else None
+
+
+def stage_label(stage: str) -> str:
+    return STAGE_LABELS.get(stage, stage.replace("_", " ").title())
+
+
+def progress_pct_for_job(job: dict, stage: str | None) -> int:
+    status = job.get("status", "")
+    if status == "success":
+        return 100
+    if status == "failed":
+        if stage:
+            return STAGE_PROGRESS.get(stage, 10)
+        return 10
+    if stage:
+        return STAGE_PROGRESS.get(stage, 10)
+    return STAGE_PROGRESS.get(JOB_STATUS_STAGE.get(status, ""), 5)
+
+
+def _failure_stage_from_summary(root: Path, project_id: str) -> str | None:
+    ota_dir = root / "OTA-Builds" / project_id
+    if not ota_dir.is_dir():
+        return None
+    candidates: list[tuple[float, Path]] = []
+    for build_dir in ota_dir.iterdir():
+        if not build_dir.is_dir():
+            continue
+        summary_path = build_dir / "summary.json"
+        if not summary_path.is_file():
+            continue
+        try:
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        if summary.get("status") != "failure":
+            continue
+        try:
+            mtime = summary_path.stat().st_mtime
+        except OSError:
+            mtime = 0.0
+        candidates.append((mtime, build_dir))
+    if not candidates:
+        return None
+    _, latest = max(candidates, key=lambda item: item[0])
+    try:
+        summary = json.loads((latest / "summary.json").read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    stage = summary.get("stage")
+    return stage if isinstance(stage, str) and stage else None
+
+
+def enrich_job_with_progress(root: Path, job: dict) -> dict:
+    enriched = dict(job)
+    status = job.get("status", "")
+    stage: str | None = None
+
+    log_file = log_path(root, job["id"])
+    if status in {"queued", "preparing", "building", "failed"}:
+        stage = parse_job_stage(log_file)
+    if not stage and status in JOB_STATUS_STAGE:
+        stage = JOB_STATUS_STAGE[status]
+    if status == "failed" and not stage:
+        stage = _failure_stage_from_summary(root, job.get("project_id", ""))
+
+    if stage:
+        enriched["stage"] = stage
+        enriched["stage_label"] = stage_label(stage)
+    enriched["progress_pct"] = progress_pct_for_job(job, stage)
+    return enriched
 
 
 def schedule_job(root: Path, job_id: str) -> None:

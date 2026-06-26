@@ -22,6 +22,7 @@ mkdir -p "$WORK_DIR"
 export DERIVED_DATA ARCHIVE_PATH WORK_DIR
 
 log "Resolving package dependencies..."
+emit_build_stage resolving_spm
 set +e
 "$XCODEBUILD" -resolvePackageDependencies \
   -project "$PROJECT_FILE" \
@@ -48,6 +49,7 @@ if [[ "${AUTO_INCREMENT_BUILD:-false}" == "true" ]]; then
 fi
 
 log "Archiving $SCHEME ($CONFIGURATION)..."
+emit_build_stage archiving
 if [[ -n "${OTA_BUILD_NUMBER:-}" ]]; then
   log "Using build number override: $OTA_BUILD_NUMBER"
 fi

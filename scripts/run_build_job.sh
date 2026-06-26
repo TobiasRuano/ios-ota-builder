@@ -96,6 +96,14 @@ if [[ $EC -eq 0 ]]; then
   exit 0
 fi
 
-update_job "failed" "$(EC=$EC python3 -c 'import json,os; print(json.dumps({"error": "build exited with code " + os.environ["EC"]}))')"
+FAIL_STAGE=""
+if [[ -f "$LOG_FILE" ]]; then
+  FAIL_STAGE="$(grep -E '^\[stage\] ' "$LOG_FILE" 2>/dev/null | tail -1 | sed 's/^\[stage\] //' || true)"
+fi
+FAIL_ERROR="build exited with code $EC"
+if [[ -n "$FAIL_STAGE" ]]; then
+  FAIL_ERROR="build failed at ${FAIL_STAGE} (exit $EC)"
+fi
+update_job "failed" "$(FAIL_ERROR="$FAIL_ERROR" python3 -c 'import json,os; print(json.dumps({"error": os.environ["FAIL_ERROR"]}))')"
 log "=== Build job $JOB_ID failed (exit $EC) ==="
 exit "$EC"

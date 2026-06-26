@@ -347,11 +347,66 @@ make_build_dir() {
           "$BUILD_OUTPUT_DIR/summary.json" \
           "$BUILD_OUTPUT_DIR/icon.png" \
           "$BUILD_OUTPUT_DIR/diagnostics.md" \
-          "$BUILD_OUTPUT_DIR/.ota_failure_reason"
+          "$BUILD_OUTPUT_DIR/.ota_failure_reason" \
+          "$BUILD_OUTPUT_DIR/build.status"
     rm -rf "$BUILD_OUTPUT_DIR/work"
   fi
   mkdir -p "$BUILD_OUTPUT_DIR"
   export BUILD_OUTPUT_DIR BUILD_DIR_NAME="$dir_name"
+}
+
+CURRENT_BUILD_STAGE=""
+export CURRENT_BUILD_STAGE
+
+effective_build_stage() {
+  printf '%s' "${FAILED_STAGE:-${CURRENT_BUILD_STAGE:-}}"
+}
+
+emit_build_stage() {
+  local stage="$1"
+  CURRENT_BUILD_STAGE="$stage"
+  export CURRENT_BUILD_STAGE
+  printf '[stage] %s\n' "$stage" >&2
+  if [[ "${OTA_BUILD_STATUS:-0}" == "1" && -n "${BUILD_OUTPUT_DIR:-}" && -d "$BUILD_OUTPUT_DIR" ]]; then
+    write_build_status "in_progress" "$stage"
+  fi
+}
+
+write_build_status() {
+  local status="$1"
+  local stage="${2:-}"
+  if [[ -z "${BUILD_OUTPUT_DIR:-}" || ! -d "$BUILD_OUTPUT_DIR" ]]; then
+    return 0
+  fi
+  local now started_at duration=0
+  now="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+  started_at="${BUILD_STATUS_STARTED_AT:-$now}"
+  if [[ -z "${BUILD_STATUS_STARTED_AT:-}" ]]; then
+    BUILD_STATUS_STARTED_AT="$started_at"
+    export BUILD_STATUS_STARTED_AT
+  fi
+  if [[ -n "${START_EPOCH:-}" ]]; then
+    duration=$(($(date +%s) - START_EPOCH))
+  fi
+  local tmp_file="$BUILD_OUTPUT_DIR/.build.status.tmp"
+  jq -n \
+    --arg status "$status" \
+    --arg stage "$stage" \
+    --arg project "${PROJECT_ID:-}" \
+    --arg build_dir "${BUILD_DIR_NAME:-}" \
+    --arg started_at "$started_at" \
+    --arg updated_at "$now" \
+    --argjson duration_seconds "$duration" \
+    '{
+      status: $status,
+      stage: (if $stage == "" then null else $stage end),
+      project: (if $project == "" then null else $project end),
+      build_dir: (if $build_dir == "" then null else $build_dir end),
+      started_at: $started_at,
+      updated_at: $updated_at,
+      duration_seconds: $duration_seconds
+    }' >"$tmp_file"
+  mv "$tmp_file" "$BUILD_OUTPUT_DIR/build.status"
 }
 
 check_disk_space() {
@@ -641,7 +696,8 @@ notify_build_result() {
     label="${PROJECT_ID:-OTA build}"
   fi
 
-  local stage="${FAILED_STAGE:-}"
+  local stage
+  stage="$(effective_build_stage)"
   local install_path=""
   if [[ "$notify_status" == "success" && -n "${PROJECT_ID:-}" && -n "${BUILD_DIR_NAME:-}" ]]; then
     install_path="/${PROJECT_ID}/${BUILD_DIR_NAME}/install.html"
