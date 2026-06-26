@@ -69,3 +69,59 @@ def test_build_install_html_debug_badge() -> None:
     )
     assert "badge-debug" in html
     assert "Debug" in html
+
+
+def test_build_install_html_release_notes() -> None:
+    html = build_install_html(
+        title="My App",
+        manifest_url="https://ota.example.com/manifest.plist",
+        ipa_url="https://ota.example.com/app.ipa",
+        install_page_url="https://ota.example.com/install.html",
+        version="1.0.0",
+        build_number="1",
+        branch="main",
+        commit="abc",
+        build_date="2025-06-26T12:00:00Z",
+        configuration="Release",
+        release_notes="Fixed login\nImproved UI",
+    )
+    assert "What&apos;s new" in html
+    assert "install-notes-body" in html
+    assert "Fixed login" in html
+    assert "Improved UI" in html
+
+
+def test_build_install_html_empty_release_notes_omits_block() -> None:
+    html = build_install_html(
+        title="My App",
+        manifest_url="https://ota.example.com/manifest.plist",
+        ipa_url="https://ota.example.com/app.ipa",
+        install_page_url="https://ota.example.com/install.html",
+        version="1.0.0",
+        build_number="1",
+        branch="main",
+        commit="abc",
+        build_date="2025-06-26T12:00:00Z",
+        configuration="Release",
+        release_notes="",
+    )
+    assert "What&apos;s new" not in html
+    assert '<div class="install-notes">' not in html
+
+
+def test_build_install_html_escapes_release_notes() -> None:
+    html = build_install_html(
+        title="My App",
+        manifest_url="https://ota.example.com/manifest.plist",
+        ipa_url="https://ota.example.com/app.ipa",
+        install_page_url="https://ota.example.com/install.html",
+        version="1.0.0",
+        build_number="1",
+        branch="main",
+        commit="abc",
+        build_date="2025-06-26T12:00:00Z",
+        configuration="Release",
+        release_notes='<script>alert("x")</script>',
+    )
+    assert "<script>" not in html
+    assert "&lt;script&gt;" in html

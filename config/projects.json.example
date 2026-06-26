@@ -9,7 +9,15 @@
       "bundle_id": "com.example.myapp",
       "auto_increment_build": true,
       "repo_url": "https://github.com/user/my-app",
-      "repo_type": "github"
+      "repo_type": "github",
+      "git": {
+        "default_mode": "auto",
+        "remote": "origin",
+        "worktree_base": "/Users/YOU/.ota-worktrees/my-app",
+        "secrets_sync": [
+          "Config/Secrets.xcconfig"
+        ]
+      }
     }
   }
 }

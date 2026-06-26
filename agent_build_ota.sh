@@ -21,20 +21,25 @@ usage() {
 Usage: agent_build_ota.sh [options] <project-id>
 
 Options:
-  --debug     Archive/export using Debug configuration (overrides projects.json)
-  --release   Archive/export using Release configuration (overrides projects.json)
-  -h, --help  Show this help
+  --debug              Archive/export using Debug configuration (overrides projects.json)
+  --release            Archive/export using Release configuration (overrides projects.json)
+  --workspace-path P   Build from this app repo path (e.g. a git worktree)
+  --notes TEXT         Manual release notes (overrides auto-generated git log notes)
+  -h, --help           Show this help
 
 Examples:
   agent_build_ota.sh dev-quotes
   agent_build_ota.sh --debug dev-quotes
   agent_build_ota.sh --release finanzio
+  agent_build_ota.sh --notes "Fixed login crash" dev-quotes
 EOF
 }
 
 parse_args() {
   PROJECT_ID=""
   OTA_CONFIGURATION_OVERRIDE=""
+  OTA_WORKSPACE_PATH=""
+  OTA_RELEASE_NOTES=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -45,6 +50,24 @@ parse_args() {
       --release)
         OTA_CONFIGURATION_OVERRIDE="Release"
         shift
+        ;;
+      --workspace-path)
+        if [[ $# -lt 2 ]]; then
+          log_error "--workspace-path requires a path argument"
+          usage
+          exit "$EC_ENVIRONMENT"
+        fi
+        OTA_WORKSPACE_PATH="$2"
+        shift 2
+        ;;
+      --notes)
+        if [[ $# -lt 2 ]]; then
+          log_error "--notes requires a value"
+          usage
+          exit "$EC_ENVIRONMENT"
+        fi
+        OTA_RELEASE_NOTES="$2"
+        shift 2
         ;;
       -h | --help)
         OTA_NOTIFY_SKIP=1
@@ -74,7 +97,7 @@ parse_args() {
     esac
   done
 
-  export OTA_CONFIGURATION_OVERRIDE PROJECT_ID
+  export OTA_CONFIGURATION_OVERRIDE PROJECT_ID OTA_WORKSPACE_PATH OTA_RELEASE_NOTES
 }
 
 on_exit() {
@@ -116,6 +139,14 @@ main() {
 
   load_config
   load_project "$PROJECT_ID"
+  if [[ -n "${OTA_WORKSPACE_PATH:-}" ]]; then
+    if [[ ! -d "$OTA_WORKSPACE_PATH" ]]; then
+      log_error "Workspace path not found: $OTA_WORKSPACE_PATH"
+      exit "$EC_ENVIRONMENT"
+    fi
+    PROJECT_PATH="$(cd "$OTA_WORKSPACE_PATH" && pwd)"
+    export PROJECT_PATH
+  fi
   git_metadata "$PROJECT_PATH"
   if ! check_git_worktree "$PROJECT_PATH"; then
     FAILED_STAGE="environment"
@@ -196,6 +227,14 @@ main() {
     ICON_REL_PATH="/$PROJECT_ID/$BUILD_DIR_NAME/icon.png"
   fi
 
+  # F05: release notes (before manifest — needed on install.html)
+  if [[ -n "${OTA_RELEASE_NOTES:-}" ]]; then
+    RELEASE_NOTES="$OTA_RELEASE_NOTES"
+  else
+    RELEASE_NOTES="$(collect_release_notes "$PROJECT_PATH" "$PROJECT_ID" "$BUILD_DIR_NAME")"
+  fi
+  export RELEASE_NOTES
+
   # Manifest + install page
   BUILD_DATE="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
   export BUILD_DATE
@@ -220,6 +259,9 @@ main() {
   if [[ -n "$ICON_REL_PATH" ]]; then
     MANIFEST_ARGS+=(--icon-filename icon.png)
   fi
+  if [[ -n "$RELEASE_NOTES" ]]; then
+    MANIFEST_ARGS+=(--release-notes "$RELEASE_NOTES")
+  fi
 
   if ! python3 "$OTA_BUILDER_ROOT/tools/generate_manifest.py" \
     "${MANIFEST_ARGS[@]}" \
@@ -237,7 +279,7 @@ main() {
   IPA_SIZE_BYTES="$(stat -f%z "$BUILD_OUTPUT_DIR/$IPA_FILENAME" 2>/dev/null || echo 0)"
 
   DURATION=$(($(date +%s) - START_EPOCH))
-  write_summary_json "success" "" "$DURATION" "$INSTALL_URL" "$MANIFEST_URL" "$IPA_URL" "$APP_VERSION" "$APP_BUILD" "$DASHBOARD_URL" "$LATEST_INSTALL_URL" "$CONFIGURATION" "$IPA_SIZE_BYTES" "$IPA_FILENAME" "$BUILD_LABEL" "$ICON_REL_PATH"
+  write_summary_json "success" "" "$DURATION" "$INSTALL_URL" "$MANIFEST_URL" "$IPA_URL" "$APP_VERSION" "$APP_BUILD" "$DASHBOARD_URL" "$LATEST_INSTALL_URL" "$CONFIGURATION" "$IPA_SIZE_BYTES" "$IPA_FILENAME" "$BUILD_LABEL" "$ICON_REL_PATH" "$RELEASE_NOTES"
   BUILD_PUBLISHED=true
   export BUILD_PUBLISHED
 

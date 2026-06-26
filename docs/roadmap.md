@@ -63,7 +63,7 @@ flowchart LR
 | F02 | QR code on install page | 1 | P0 | S | Done | [F02](roadmap-features.md#f02) |
 | F03 | `/latest/<project-id>` redirect | 1 | P0 | S | Done | [F03](roadmap-features.md#f03) |
 | F04 | App icon from archive | 3 | P1 | M | Done | [F04](roadmap-features.md#f04) |
-| F05 | Auto release notes | 3 | P2 | M | Planned | [F05](roadmap-features.md#f05) |
+| F05 | Auto release notes | 3 | P2 | M | Done | [F05](roadmap-features.md#f05) |
 | F06 | Copy-to-clipboard links | 1 | P0 | S | Done | [F06](roadmap-features.md#f06) |
 | F07 | Visual badges (Debug/Release, latest) | 1 | P0 | S | Done | [F07](roadmap-features.md#f07) |
 | F08 | Table metadata (size, duration, config) | 2 | P1 | S | Done | [F08](roadmap-features.md#f08) |
@@ -87,6 +87,7 @@ flowchart LR
 | F26 | Side-by-side build comparison | 5 | P3 | L | Planned | [F26](roadmap-features.md#f26) |
 | F27 | Crash log upload portal | 5 | P3 | L | Planned | [F27](roadmap-features.md#f27) |
 | F28 | macOS menu bar widget | 5 | P3 | L | Planned | [F28](roadmap-features.md#f28) |
+| F29 | Dashboard build trigger | 5 | P1 | L | Done | [F29](roadmap-features.md#f29) |
 
 **Priority:** P0 = do first · P1 = high value · P2 = nice to have · P3 = future  
 **Effort:** S = small (hours) · M = medium (1–2 days) · L = large (multi-day)
@@ -119,7 +120,7 @@ This roadmap does **not** aim to replace:
 - **TestFlight** or App Store distribution
 - **CI platforms** (GitHub Actions, Bitrise) — the Mac remains the build server
 - **CocoaPods / `.xcworkspace`** projects
-- **Multi-user auth** or per-tester tokens (single shared token is intentional for personal use)
+- **Multi-user auth** or per-tester tokens (single admin login + shared OTA token is intentional for personal use)
 
 ---
 

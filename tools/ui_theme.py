@@ -149,6 +149,33 @@ def css_labels() -> str:
   border-bottom: 1px solid var(--border-strong);
 }
 
+.page-header-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.page-header-main {
+  min-width: 0;
+}
+
+.page-header-actions {
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+.page-header-meta {
+  margin-top: .15rem;
+}
+
+@media (max-width: 720px) {
+  .page-header-actions {
+    width: 100%;
+  }
+}
+
 .empty-state {
   margin: 0;
   padding: 1.25rem 1.5rem;
@@ -193,6 +220,25 @@ def css_buttons() -> str:
 }
 
 .btn-danger:hover { background: var(--btn-danger-hover); }
+
+.btn-secondary {
+  display: inline-block;
+  padding: .4rem .85rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+  font-size: .85rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-secondary:hover {
+  background: var(--surface-muted);
+  color: var(--text);
+}
 
 .btn-primary.block {
   display: block;
@@ -487,6 +533,34 @@ def css_cards() -> str:
   word-break: break-word;
 }
 
+.build-notes {
+  margin-top: .5rem;
+  font-size: .82rem;
+}
+
+.build-notes summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-weight: 500;
+  user-select: none;
+}
+
+.build-notes summary:hover {
+  color: var(--text);
+}
+
+.build-notes-body {
+  margin: .35rem 0 0;
+  padding: .5rem .65rem;
+  border-radius: 6px;
+  background: var(--surface-muted);
+  color: var(--text);
+  font: 400 .75rem "IBM Plex Mono", monospace;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .install-qr {
   display: none;
   margin: 0 0 1.25rem;
@@ -517,13 +591,13 @@ table.builds-table {
   font-size: .9rem;
 }
 
-col.col-build { width: 17%; }
-col.col-branch { width: 20%; }
-col.col-commit { width: 11%; }
-col.col-version { width: 11%; }
-col.col-duration { width: 9%; }
-col.col-size { width: 7%; }
-col.col-actions { width: 17%; min-width: 8.75rem; }
+col.col-build { width: 20%; }
+col.col-branch { width: 24%; }
+col.col-commit { width: 14%; }
+col.col-version { width: 12%; }
+col.col-duration { width: 10%; }
+col.col-size { width: 8%; }
+col.col-actions { width: 12%; }
 
 table.builds-table th {
   padding: .65rem 1.25rem;
@@ -552,19 +626,6 @@ table.builds-table td.cell-truncate {
 
 table.builds-table td.cell-nowrap {
   white-space: nowrap;
-}
-
-table.builds-table th:last-child,
-table.builds-table td.cell-actions {
-  text-align: right;
-}
-
-table.builds-table td.cell-actions {
-  overflow: visible;
-}
-
-table.builds-table td.cell-actions .actions {
-  justify-content: flex-end;
 }
 
 table.builds-table tbody tr:last-child td { border-bottom: none; }
@@ -600,7 +661,7 @@ table.builds-table tbody tr.build-row-failed:hover td {
 
 .badge-group {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: .35rem;
 }
 
@@ -860,6 +921,221 @@ def css_status_panel() -> str:
 """
 
 
+def css_forms() -> str:
+    return """
+.login-card {
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.login-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.login-form label {
+  display: grid;
+  gap: .35rem;
+  font-size: .9rem;
+  font-weight: 500;
+}
+
+.login-form input {
+  width: 100%;
+  padding: .55rem .75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-muted);
+  color: var(--text);
+  font: inherit;
+}
+
+.login-form input:focus {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.login-error {
+  margin: 0 0 1rem;
+  padding: .75rem 1rem;
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  border-radius: 6px;
+  font-size: .9rem;
+}
+"""
+
+
+def css_build_panel() -> str:
+    return """
+.project-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem;
+}
+
+.btn-new-build-toggle {
+  display: inline-block;
+  padding: .35rem .7rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+  font-size: .85rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-new-build-toggle:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+  background: var(--surface-muted);
+}
+
+.btn-new-build-toggle[aria-expanded="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+.build-panel {
+  margin: 0 0 1rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.build-panel-title {
+  margin: 0 0 .75rem;
+  font: 600 .82rem "IBM Plex Mono", monospace;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.build-panel-status {
+  margin: 0 0 .75rem;
+  font-size: .85rem;
+  color: var(--text);
+}
+
+.build-panel-status .warn {
+  color: var(--danger);
+  font-weight: 500;
+}
+
+.build-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: .75rem;
+  align-items: end;
+}
+
+.build-panel-field label {
+  display: block;
+  margin-bottom: .25rem;
+  font-size: .75rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.build-panel-field select,
+.build-panel-field input[type="text"] {
+  width: 100%;
+  padding: .45rem .55rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+  font-size: .85rem;
+}
+
+.build-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  align-items: center;
+  margin-top: .75rem;
+}
+
+.btn-build-start {
+  display: inline-block;
+  padding: .45rem .9rem;
+  border: 1px solid var(--btn-primary);
+  border-radius: 6px;
+  background: var(--btn-primary);
+  color: #fff;
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+  font-size: .85rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-build-start:hover:not(:disabled) {
+  background: var(--btn-primary-hover);
+  border-color: var(--btn-primary-hover);
+}
+
+.btn-build-start:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.btn-build-secondary {
+  display: inline-block;
+  padding: .45rem .75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+  font-size: .85rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-build-secondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+.build-panel-progress {
+  margin-top: .65rem;
+  font-size: .82rem;
+  color: var(--muted);
+}
+
+.build-panel-progress.is-active {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+@media (max-width: 640px) {
+  .build-panel-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .project-header-actions {
+    width: 100%;
+  }
+
+  .project-header-actions .btn-new-build-toggle,
+  .project-header-actions .btn-copy {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+}
+"""
+
+
 def css_all(*, narrow: bool = False) -> str:
     return "\n".join(
         [
@@ -867,9 +1143,11 @@ def css_all(*, narrow: bool = False) -> str:
             css_layout(narrow=narrow),
             css_labels(),
             css_buttons(),
+            css_forms(),
             css_cards(),
             css_table(),
             css_status_panel(),
+            css_build_panel(),
         ]
     )
 
@@ -901,8 +1179,44 @@ def unauthorized_html() -> str:
     <header class="page-header">
       <p class="kicker">Access</p>
       <h1>401 Unauthorized</h1>
-      <p class="muted">Access requires a valid token.</p>
+      <p class="muted">Access requires a valid token or an active login session.</p>
+      <p class="muted"><a class="link-accent" href="/login">Sign in</a></p>
     </header>
+  </main>
+</body>
+</html>
+"""
+
+
+def login_html(*, next_path: str = "/", error: str | None = None) -> str:
+    safe_next = html.escape(next_path)
+    error_block = ""
+    if error:
+        error_block = f'<p class="login-error" role="alert">{html.escape(error)}</p>\n'
+    return f"""<!DOCTYPE html>
+<html lang="en">
+{base_head("Sign in", narrow=True)}
+<body>
+  <main class="page">
+    <header class="page-header">
+      <p class="kicker">Access</p>
+      <h1>Sign in</h1>
+      <p class="muted">Use your admin credentials to access builds and downloads.</p>
+    </header>
+    <div class="login-card">
+      {error_block}<form class="login-form" method="post" action="/api/login">
+        <input type="hidden" name="next" value="{safe_next}">
+        <label>
+          Username
+          <input name="username" type="text" autocomplete="username" required>
+        </label>
+        <label>
+          Password
+          <input name="password" type="password" autocomplete="current-password" required>
+        </label>
+        <button class="btn-primary block" type="submit">Sign in</button>
+      </form>
+    </div>
   </main>
 </body>
 </html>

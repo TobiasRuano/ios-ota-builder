@@ -90,6 +90,9 @@ write_local_env() {
     log "Generated new OTA_ACCESS_TOKEN"
   fi
 
+  local token_created_at
+  token_created_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+
   if [[ -z "$url" ]]; then
     read -r -p "OTA_BASE_URL (https://ota.yourdomain.com): " url
   fi
@@ -107,6 +110,7 @@ write_local_env() {
 # Private config — do not commit (gitignored)
 OTA_BASE_URL=${url}
 OTA_ACCESS_TOKEN=${token}
+OTA_TOKEN_CREATED_AT=${token_created_at}
 APPLE_TEAM_ID=${team}
 OTA_HOSTNAME=${hostname}
 CLOUDFLARE_TUNNEL_NAME=${tunnel_name}
@@ -114,10 +118,24 @@ CLOUDFLARE_TUNNEL_ID=${tunnel_id}
 OTA_PORT=${port}
 OTA_KEEP_BUILDS=5
 OTA_MAX_AGE_DAYS=7
+OTA_TOKEN_ROTATE_DAYS=30
+OTA_ADMIN_USERNAME=admin
 LAUNCHD_LABEL_PREFIX=com.local.ios-ota-builder
 EOF
   chmod 600 "$LOCAL_ENV"
   log "Wrote $LOCAL_ENV (mode 600)"
+}
+
+prompt_admin_password() {
+  if [[ -f "$LOCAL_ENV" ]] && grep -q '^OTA_ADMIN_PASSWORD_HASH=.' "$LOCAL_ENV" 2>/dev/null; then
+    return 0
+  fi
+  read -r -p "Set admin password for dashboard login now? [y/N]: " setup_admin
+  if [[ "$setup_admin" =~ ^[Yy]$ ]]; then
+    python3 "$ROOT/tools/set_admin_password.py" || true
+  else
+    log "Skipping admin password — run ./scripts/set_admin_password.sh later"
+  fi
 }
 
 main() {
@@ -133,6 +151,8 @@ main() {
     log "config/local.env already exists — skipping"
   fi
 
+  prompt_admin_password
+
   if [[ ! -f "$PROJECTS_JSON" ]]; then
     if [[ -f "$PROJECTS_EXAMPLE" ]]; then
       cp "$PROJECTS_EXAMPLE" "$PROJECTS_JSON"
@@ -144,10 +164,11 @@ main() {
 
   log "Done. Next steps:"
   echo "  1. Edit config/projects.json with your iOS apps"
-  echo "  2. ./server/setup_cloudflared.sh"
-  echo "  3. ./scripts/install_launchagents.sh"
-  echo "  4. ./server/restart_server.sh"
-  echo "  5. ./scripts/verify_signing.sh <project-id>"
+  echo "  2. ./scripts/set_admin_password.sh   # if you skipped admin login"
+  echo "  3. ./server/setup_cloudflared.sh"
+  echo "  4. ./scripts/install_launchagents.sh"
+  echo "  5. ./server/restart_server.sh"
+  echo "  6. ./scripts/verify_signing.sh <project-id>"
 }
 
 main "$@"

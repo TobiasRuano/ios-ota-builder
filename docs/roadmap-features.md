@@ -333,7 +333,7 @@ Icon name is read dynamically from `Info.plist` (`CFBundleIconName`, `CFBundleIc
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P2 |
 | **Effort** | M |
 | **Phase** | 3 |
@@ -364,11 +364,11 @@ F23 (changelog) shares git-log logic — implement once, reuse.
 
 **Acceptance criteria**
 
-- [ ] `--notes` overrides auto-generated notes
-- [ ] Auto notes list commits since last successful build for same project
-- [ ] First-ever build shows “Initial build” or empty section
-- [ ] Notes visible on install page
-- [ ] Notes stored in `summary.json`
+- [x] `--notes` overrides auto-generated notes
+- [x] Auto notes list commits since last successful build for same project
+- [x] First-ever build shows “Initial build” or empty section
+- [x] Notes visible on install page
+- [x] Notes stored in `summary.json`
 
 ---
 
@@ -1271,6 +1271,52 @@ F18, F21.
 
 **Notes**  
 Largest scope item — consider a separate repository to keep ios-ota-builder shell/Python focused.
+
+---
+
+<a id="f29"></a>
+### F29 — Dashboard build trigger
+
+| | |
+|---|---|
+| **Status** | Done |
+| **Priority** | P1 |
+| **Effort** | L |
+| **Phase** | 5 |
+
+**Problem**  
+Starting an OTA build requires SSH, a shell, or asking an agent to run `agent_build_ota.sh`. There is no way to pick a branch or handle a dirty working tree from the dashboard.
+
+**Proposed solution**  
+Authenticated dashboard panel per project:
+
+- Git status (branch, commit, dirty count, conflicts) via `GET /api/git/status`
+- Branch list + `POST /api/git/fetch`
+- `POST /api/builds/trigger` → background job (`scripts/run_build_job.sh`) → `prepare_git_workspace.sh` → `agent_build_ota.sh`
+- Job polling via `GET /api/builds/jobs/<id>`
+- Git modes: `auto`, `checkout`, `stash_checkout`, `worktree`
+- `git.secrets_sync` in `projects.json` for worktree symlink of local secrets (RevenueCat, xcconfig)
+
+Reuses F13 (dirty check in pipeline), F14 (build lock), F15 (notifications), and the async spawn pattern from server restart (#26).
+
+**Files touched**
+
+- `server/build_jobs.py`, `server/git_api.py`, `server/static_server.py`
+- `scripts/prepare_git_workspace.sh`, `scripts/run_build_job.sh`, `scripts/sync_worktree_secrets.sh`
+- `agent_build_ota.sh` — `--workspace-path`
+- `tools/ota_index.py`, `tools/ui_theme.py`
+- `config/projects.json.example`, `docs/SETUP.md`
+
+**Dependencies**  
+F13, F14, F15 (all Done).
+
+**Acceptance criteria**
+
+- [x] Dashboard shows New build panel with token auth
+- [x] Can fetch remotes and select branch
+- [x] Build runs in background; UI polls until success/failure
+- [x] Worktree mode syncs listed secrets from base checkout
+- [x] pytest coverage for jobs API, git API, and dashboard HTML
 
 ---
 

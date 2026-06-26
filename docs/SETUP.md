@@ -26,7 +26,18 @@ APPLE_TEAM_ID=XXXXXXXXXX
 OTA_HOSTNAME=ota.yourdomain.com
 CLOUDFLARE_TUNNEL_NAME=ios-ota
 CLOUDFLARE_TUNNEL_ID=your-tunnel-uuid
+OTA_ADMIN_USERNAME=admin
+OTA_TOKEN_ROTATE_DAYS=30
 ```
+
+Set an admin password (recommended if you access the dashboard remotely):
+
+```bash
+./scripts/set_admin_password.sh
+./server/restart_server.sh
+```
+
+Without `OTA_ADMIN_PASSWORD_HASH`, the server behaves as before (token-only). With admin login enabled, browsers without a valid token are redirected to `/login`.
 
 ---
 
@@ -115,6 +126,7 @@ Preflight:
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.local.ios-ota-builder.ota-server.plist
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.local.ios-ota-builder.ota-cloudflared.plist
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.local.ios-ota-builder.ota-cleanup.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.local.ios-ota-builder.ota-token-rotation.plist
 ```
 
 Verify:
@@ -123,9 +135,11 @@ Verify:
 source config/env.sh
 curl -sf "http://127.0.0.1:${OTA_PORT:-8765}/health"              # → 200 without token
 curl -sfI "http://127.0.0.1:${OTA_PORT:-8765}/health"            # → HEAD 200
-curl -I "https://ota.yourdomain.com/"                              # → 401 without token
+curl -I "https://ota.yourdomain.com/"                              # → 401 or 302 → /login
 curl -I "https://ota.yourdomain.com/?token=$OTA_ACCESS_TOKEN"    # → 200
 ```
+
+With admin login configured, open `https://ota.yourdomain.com/login` (or `/` and follow the redirect), sign in, and use the dashboard links — they include the current access token automatically.
 
 Stable install URL (redirects to the newest successful build):
 
@@ -151,6 +165,7 @@ OTA_STATUS_MIN_DISK_MB=5000   # ota-status warns/exits if free space below this 
 - **Server status panel** (footer on the dashboard): free disk space (GB and % used), server uptime, builds-dir writable flag, and optional tunnel reachability (`OTA_STATUS_PROBE_TUNNEL=1`). Low-disk warning when free space is below `OTA_STATUS_MIN_DISK_MB`. Refreshes on each page load.
 - Failed builds count toward `OTA_KEEP_BUILDS` and `OTA_MAX_AGE_DAYS` like successful builds.
 - **Delete** button on each row: removes from disk and disappears from the list (works from iPhone).
+- **New build panel** (F29): start an OTA build from the dashboard — click **New build** on a project card to open the form, then pick branch, git mode (auto / checkout / stash / worktree), and configuration. Requires token auth. See [Dashboard builds](#dashboard-builds-f29) below.
 
 Force manual cleanup:
 
@@ -171,6 +186,41 @@ Regression test (Linux or macOS, no real build required):
 ```
 
 Or only the F15 shell tests: `./scripts/test_notify_build_result.sh`
+
+### Dashboard builds (F29)
+
+Each project card on the dashboard includes a **New build** button in the header when accessed with a valid token. Click it to open the build form. You can:
+
+- View current git branch, commit, and dirty-file count (same rules as F13)
+- **Fetch remotes** to refresh the branch list
+- Choose **branch**, **git mode**, and **configuration**
+- **Start build** — runs in the background on the Mac; the page polls job status and refreshes when done
+
+**Git modes** (per project, default `auto` in `projects.json`):
+
+| Mode | Behavior |
+|------|----------|
+| `auto` | Clean tree → checkout on base path; dirty tree → isolated git worktree |
+| `checkout` | `git checkout` on the registered project path |
+| `stash_checkout` | `git stash -u` then checkout (stash is not auto-restored) |
+| `worktree` | Build in a separate worktree under `git.worktree_base` |
+
+**Secrets in worktrees:** uncommitted files (e.g. RevenueCat keys, `Secrets.xcconfig`) are not copied by git. List them under `git.secrets_sync` in `config/projects.json` — they are symlinked from the base checkout into the worktree before build.
+
+Example `projects.json` extension:
+
+```json
+"git": {
+  "default_mode": "auto",
+  "remote": "origin",
+  "worktree_base": "/Users/YOU/.ota-worktrees/my-app",
+  "secrets_sync": ["Config/Secrets.xcconfig"]
+}
+```
+
+Job logs: `.server/build-jobs/<job-id>.log` (gitignored). F14 build lock still applies — a second build for the same project-id fails or waits per `OTA_BUILD_LOCK`.
+
+API (token required): `POST /api/builds/trigger`, `GET /api/builds/jobs/<id>`, `GET /api/git/status?project=<id>`.
 
 ---
 
@@ -256,7 +306,7 @@ The iPhone UDID must be registered in the Ad Hoc provisioning profile.
 |----------|----------|
 | `Missing config/local.env` | `./scripts/setup.sh` |
 | Unknown project-id | Use `my-app`, not the repo path |
-| `401` on OTA | Wrong token → `restart_server.sh` |
+| `401` on OTA | Wrong or rotated token → sign in at `/login`, or use `print_dashboard_url.sh` on the Mac |
 | `502` on Cloudflare | Local server down + tunnel active |
 | Export/signing failed | `verify_signing.sh`; UDID; Distribution certificate |
 
@@ -264,13 +314,65 @@ Failure logs: `OTA-Builds/<project>/<build>/diagnostics.md`
 
 ---
 
-## Rotate token
+## Admin login and token rotation
+
+### Admin login
+
+Single admin account (not multi-user). Credentials live in `config/local.env`:
+
+- `OTA_ADMIN_USERNAME` (default `admin`)
+- `OTA_ADMIN_PASSWORD_HASH` (PBKDF2; set via `./scripts/set_admin_password.sh`)
+
+Passwords must be at least **12 characters**. After changing credentials, **always** run `./server/restart_server.sh` to apply the new hash and invalidate active sessions.
+
+After login, the server sets an `HttpOnly` session cookie (`OTA_SESSION`, 7 days by default). The dashboard and delete actions work with either:
+
+- a valid session cookie, or
+- the current `OTA_ACCESS_TOKEN` (`?token=` / `Bearer`)
+
+iOS OTA installs still require the access token in manifest/IPA URLs. The server regenerates `install.html` and `manifest.plist` on each request with the **current** token, so old builds keep working after rotation.
+
+### Automatic token rotation
+
+In `config/local.env`:
+
+```bash
+OTA_TOKEN_ROTATE_DAYS=30   # 0 = disabled (manual rotation only)
+OTA_TOKEN_CREATED_AT=      # set automatically when the token is generated
+```
+
+Daily check via LaunchAgent (`ota-token-rotation`, 04:00). When the interval elapses:
+
+1. `./scripts/generate_access_token.sh` writes a new token
+2. `./server/restart_server.sh` reloads the server
+
+**Remote recovery after rotation:** open your OTA URL → sign in → dashboard links use the new token. Bookmarked URLs with an old `?token=` stop working (by design).
+
+Manual rotation (any time):
 
 ```bash
 ./scripts/generate_access_token.sh
 ./server/restart_server.sh
 ```
 
-The token **does not expire on its own**. It is a fixed secret in `config/local.env` until you rotate it manually with `./scripts/generate_access_token.sh`. You can bookmark `dashboard_url` without issue.
+Local scripts on the Mac (`agent_build_ota.sh`, `print_dashboard_url.sh`) read the new token from `config/local.env` automatically.
 
-It only stops working if you rotate the token (then you need the new link from the agent or `./scripts/print_dashboard_url.sh`).
+### Security checklist
+
+| Requirement | Why |
+|-------------|-----|
+| Set `OTA_ACCESS_TOKEN` | If empty, the Python server serves **everything without auth** (fail-open) |
+| Use the **Python server** (`ota-server` LaunchAgent), not nginx alone | nginx serves static files with no login or token checks |
+| HTTPS via Cloudflare Tunnel | Required for OTA; session cookies use the `Secure` flag |
+| `chmod 600` on `config/local.env` | Keeps token and password hash private |
+| Password ≥ 12 characters | Enforced by `set_admin_password.sh` |
+| Restart after password change | Running server keeps old sessions until restart |
+| Treat `?token=` URLs as secrets | Required for iOS OTA; do not share publicly |
+| `SameSite=Lax` on session cookie | Sufficient for personal use; XSS on your domain would be the main CSRF-like risk |
+
+Optional tuning in `config/local.env`:
+
+```bash
+OTA_SESSION_MAX_AGE=604800        # session lifetime (seconds)
+OTA_MAX_ACTIVE_SESSIONS=32        # cap concurrent login sessions
+```

@@ -38,6 +38,7 @@ jq -r '.projects | keys[]' /path/to/ios-ota-builder/config/projects.json
 ```bash
 agent_build_ota.sh --debug my-app    # fast iteration
 agent_build_ota.sh --release my-app  # force Release
+agent_build_ota.sh --notes "Fixed login crash" my-app  # manual release notes
 ```
 
 ## Workflow
