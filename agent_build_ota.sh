@@ -117,6 +117,10 @@ main() {
   load_config
   load_project "$PROJECT_ID"
   git_metadata "$PROJECT_PATH"
+  if ! check_git_worktree "$PROJECT_PATH"; then
+    FAILED_STAGE="environment"
+    exit "$EC_ENVIRONMENT"
+  fi
   check_disk_space 5000
   mkdir -p "$OTA_BUILDS_DIR"
   acquire_build_lock

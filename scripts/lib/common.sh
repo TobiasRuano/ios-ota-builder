@@ -22,6 +22,10 @@ log_error() {
   log "ERROR: $*" >&2
 }
 
+log_warn() {
+  log "WARN: $*"
+}
+
 require_cmd() {
   local cmd="$1"
   if ! command -v "$cmd" >/dev/null 2>&1; then
@@ -179,6 +183,36 @@ git_metadata() {
     GIT_COMMIT="unknown"
   fi
   export GIT_BRANCH GIT_COMMIT
+}
+
+check_git_worktree() {
+  local repo_path="$1"
+  local porcelain count
+
+  GIT_DIRTY_COUNT=0
+  export GIT_DIRTY_COUNT
+
+  if ! git -C "$repo_path" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    return 0
+  fi
+
+  porcelain="$(git -C "$repo_path" status --porcelain 2>/dev/null || true)"
+  if [[ -z "$porcelain" ]]; then
+    return 0
+  fi
+
+  count="$(printf '%s\n' "$porcelain" | wc -l | tr -d ' ')"
+  GIT_DIRTY_COUNT="$count"
+  export GIT_DIRTY_COUNT
+
+  log_warn "Project repo has $count uncommitted change(s) in $repo_path — the IPA may not match an exact commit and reproduction may be difficult."
+
+  if [[ "${OTA_FAIL_ON_DIRTY:-0}" == "1" ]]; then
+    log_error "OTA_FAIL_ON_DIRTY=1: refusing to build with a dirty git worktree."
+    return 1
+  fi
+
+  return 0
 }
 
 make_build_dir() {
