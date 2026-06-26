@@ -87,6 +87,7 @@ def main() -> int:
     parser.add_argument("--display-name", required=True)
     parser.add_argument("--bundle-id", required=True)
     parser.add_argument("--bundle-version", required=True)
+    parser.add_argument("--ipa-filename", default="app.ipa")
     parser.add_argument("--access-token", default="")
     args = parser.parse_args()
 
@@ -96,7 +97,8 @@ def main() -> int:
     base = args.base_url.rstrip("/")
     rel = f"{args.project_id}/{args.build_dir_name}"
     token = args.access_token or None
-    ipa_url = with_access_token(f"{base}/{rel}/app.ipa", token)
+    encoded_ipa = quote(args.ipa_filename, safe="")
+    ipa_url = with_access_token(f"{base}/{rel}/{encoded_ipa}", token)
     manifest_url = with_access_token(f"{base}/{rel}/manifest.plist", token)
     install_page_url = with_access_token(f"{base}/{rel}/install.html", token)
 

@@ -459,6 +459,11 @@ table.builds-table tbody tr:hover td { background: var(--surface-muted); }
   font-weight: 500;
 }
 
+.build-name > .build-label {
+  white-space: nowrap;
+  font-weight: 500;
+}
+
 .badge-group {
   display: flex;
   flex-wrap: wrap;

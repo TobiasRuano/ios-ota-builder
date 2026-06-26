@@ -54,6 +54,6 @@ if [[ -z "$IPA_SRC" ]]; then
   exit "$EC_EXPORT"
 fi
 
-IPA_DEST="$BUILD_OUTPUT_DIR/app.ipa"
+IPA_DEST="$BUILD_OUTPUT_DIR/${IPA_FILENAME:-app.ipa}"
 cp "$IPA_SRC" "$IPA_DEST"
 log "IPA exported: $IPA_DEST"
