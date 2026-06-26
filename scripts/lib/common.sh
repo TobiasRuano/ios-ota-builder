@@ -190,6 +190,8 @@ write_summary_json() {
   local build_number="${8:-}"
   local dashboard_url="${9:-}"
   local latest_install_url="${10:-}"
+  local configuration="${11:-${CONFIGURATION:-}}"
+  local ipa_size_bytes="${12:-0}"
 
   local summary_file="$BUILD_OUTPUT_DIR/summary.json"
   local now
@@ -212,6 +214,8 @@ write_summary_json() {
     --arg build_number "$build_number" \
     --arg stage "$stage" \
     --arg build_dir "$BUILD_DIR_NAME" \
+    --arg configuration "$configuration" \
+    --argjson ipa_size_bytes "$ipa_size_bytes" \
     '{
       status: $status,
       project: $project,
@@ -228,7 +232,9 @@ write_summary_json() {
       version: $version,
       build_number: $build_number,
       stage: (if $stage == "" then null else $stage end),
-      build_dir: $build_dir
+      build_dir: $build_dir,
+      configuration: (if $configuration == "" then null else $configuration end),
+      ipa_size_bytes: (if $ipa_size_bytes == 0 then null else $ipa_size_bytes end)
     }' >"$summary_file"
 
   export SUMMARY_FILE="$summary_file"

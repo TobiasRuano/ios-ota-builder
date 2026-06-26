@@ -10,6 +10,44 @@ from pathlib import Path
 from auth_urls import with_access_token
 from ui_theme import base_head
 
+_COPY_SCRIPT = """<script>
+document.addEventListener("click", function (e) {
+  var btn = e.target.closest(".btn-copy");
+  if (!btn) return;
+  var url = btn.getAttribute("data-copy-url");
+  if (!url) return;
+  function showCopied() {
+    var original = btn.getAttribute("data-copy-label") || btn.textContent;
+    btn.textContent = "Copied!";
+    btn.classList.add("copied");
+    btn.setAttribute("aria-label", "Copied to clipboard");
+    setTimeout(function () {
+      btn.textContent = original;
+      btn.classList.remove("copied");
+      btn.setAttribute("aria-label", btn.getAttribute("data-copy-aria") || original);
+    }, 1500);
+  }
+  function fallback() {
+    var ta = document.createElement("textarea");
+    ta.value = url;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand("copy");
+      showCopied();
+    } catch (err) {}
+    document.body.removeChild(ta);
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(showCopied).catch(fallback);
+  } else {
+    fallback();
+  }
+});
+</script>"""
+
 
 def load_summary(build_dir: Path) -> dict | None:
     summary_path = build_dir / "summary.json"
@@ -21,6 +59,49 @@ def load_summary(build_dir: Path) -> dict | None:
         return None
 
 
+def _resolve_configuration(build_dir_name: str, summary: dict | None) -> str | None:
+    if summary and summary.get("configuration"):
+        return str(summary["configuration"])
+    if build_dir_name.endswith("-debug"):
+        return "Debug"
+    return "Release"
+
+
+def _format_duration(seconds: int | float | None) -> str:
+    if seconds is None:
+        return "—"
+    try:
+        total = int(seconds)
+    except (TypeError, ValueError):
+        return "—"
+    if total < 0:
+        return "—"
+    if total < 60:
+        return f"{total}s"
+    minutes, secs = divmod(total, 60)
+    if minutes < 60:
+        return f"{minutes}m {secs}s" if secs else f"{minutes}m"
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours}h {minutes}m"
+
+
+def _format_ipa_size(bytes_: int | None) -> str:
+    if bytes_ is None:
+        return "—"
+    try:
+        size = int(bytes_)
+    except (TypeError, ValueError):
+        return "—"
+    if size <= 0:
+        return "—"
+    mb = size / (1024 * 1024)
+    if mb >= 100:
+        return f"{mb:.0f} MB"
+    if mb >= 10:
+        return f"{mb:.1f} MB"
+    return f"{mb:.2f} MB"
+
+
 def _build_entry_if_valid(build_dir: Path, project_id: str) -> dict | None:
     if not build_dir.is_dir():
         return None
@@ -28,12 +109,13 @@ def _build_entry_if_valid(build_dir: Path, project_id: str) -> dict | None:
         return None
     summary = load_summary(build_dir)
     rel = f"{project_id}/{build_dir.name}"
-    entry = {
+    entry: dict = {
         "dir": build_dir.name,
         "path": rel,
         "project_id": project_id,
         "has_ipa": True,
         "has_install": (build_dir / "install.html").is_file(),
+        "configuration": _resolve_configuration(build_dir.name, summary),
     }
     if summary:
         entry.update(
@@ -47,8 +129,12 @@ def _build_entry_if_valid(build_dir: Path, project_id: str) -> dict | None:
                 "install_url": summary.get("install_url"),
                 "manifest_url": summary.get("manifest_url"),
                 "ipa_url": summary.get("ipa_url"),
+                "duration_seconds": summary.get("duration_seconds"),
+                "ipa_size_bytes": summary.get("ipa_size_bytes"),
             }
         )
+        if summary.get("configuration"):
+            entry["configuration"] = summary["configuration"]
     return entry
 
 
@@ -79,6 +165,7 @@ def find_latest_build(
     return None
 
 
+
 def collect_builds(ota_dir: Path, projects_config: dict) -> dict:
     result: dict = {
         "projects": {},
@@ -94,6 +181,12 @@ def collect_builds(ota_dir: Path, projects_config: dict) -> dict:
                 if entry is not None:
                     builds.append(entry)
 
+        latest_marked = False
+        for entry in builds:
+            if not latest_marked and entry.get("status") == "success":
+                entry["is_latest"] = True
+                latest_marked = True
+
         result["projects"][project_id] = {
             "display_name": meta.get("display_name", project_id),
             "builds": builds,
@@ -102,14 +195,43 @@ def collect_builds(ota_dir: Path, projects_config: dict) -> dict:
     return result
 
 
-def _status_badge(status: str | None) -> str:
-    if not status:
-        return ""
-    label = html.escape(str(status))
+def _copy_button(url: str, *, aria_label: str, label: str = "Copy") -> str:
     return (
-        f'<span class="status-badge">'
-        f'<span class="status-dot" aria-hidden="true"></span>{label}</span>'
+        f'<button type="button" class="btn-copy" '
+        f'data-copy-url="{html.escape(url, quote=True)}" '
+        f'data-copy-label="{html.escape(label)}" '
+        f'data-copy-aria="{html.escape(aria_label)}" '
+        f'aria-label="{html.escape(aria_label)}">{html.escape(label)}</button>'
     )
+
+
+def _build_badges(build: dict) -> str:
+    badges: list[str] = []
+    status = build.get("status")
+
+    if status == "success":
+        badges.append(
+            '<span class="status-badge status-success">'
+            '<span class="status-dot" aria-hidden="true"></span>success</span>'
+        )
+    elif status == "failure":
+        badges.append('<span class="status-badge badge-failed">failed</span>')
+    elif status:
+        label = html.escape(str(status))
+        badges.append(f'<span class="status-badge">{label}</span>')
+
+    configuration = build.get("configuration")
+    if configuration == "Debug":
+        badges.append('<span class="status-badge badge-debug">Debug</span>')
+    elif configuration == "Release":
+        badges.append('<span class="status-badge badge-release">Release</span>')
+
+    if build.get("is_latest"):
+        badges.append('<span class="status-badge badge-latest">Latest</span>')
+
+    if not badges:
+        return ""
+    return f'<div class="badge-group">{"".join(badges)}</div>'
 
 
 def render_index(
@@ -144,29 +266,48 @@ def render_index(
 
     for project_id, project in data.get("projects", {}).items():
         display = html.escape(project.get("display_name", project_id))
-        sections.append(f'<section class="project-card"><h2>{display}</h2>')
         builds = project.get("builds", [])
         if not builds:
-            sections.append('<p class="empty-state">No builds yet.</p></section>')
+            sections.append(
+                f'<section class="project-card"><h2>{display}</h2>'
+                '<p class="empty-state">No builds yet.</p></section>'
+            )
             continue
+
+        has_successful = any(b.get("status") == "success" for b in builds)
+        header_actions = ""
+        if has_successful:
+            latest_install_url = u(f"{base}/latest/{project_id}")
+            header_actions = _copy_button(
+                latest_install_url,
+                aria_label=f"Copy latest install link for {project.get('display_name', project_id)}",
+                label="Copy latest",
+            )
+
+        sections.append(
+            f'<section class="project-card">'
+            f'<div class="project-card-header"><h2>{display}</h2>{header_actions}</div>'
+        )
 
         sections.append(
             '<div class="table-wrap"><table class="builds-table">'
             "<thead><tr><th>Build</th><th>Branch</th><th>Commit</th>"
-            "<th>Version</th><th>Actions</th></tr></thead><tbody>"
+            "<th>Version</th><th>Duration</th><th>Size</th><th>Actions</th></tr></thead><tbody>"
         )
         for b in builds:
             install = u(b.get("install_url") or f"{base}/{b['path']}/install.html")
             ipa = u(b.get("ipa_url") or f"{base}/{b['path']}/app.ipa")
             archive_log = u(f"{base}/{b['path']}/archive.log")
             build_name = html.escape(b.get("dir", ""))
-            status_html = _status_badge(b.get("status"))
+            badges_html = _build_badges(b)
             confirm_msg = "Delete this build permanently?"
 
             actions = '<div class="actions">'
             if b.get("has_install") or b.get("has_ipa"):
                 actions += f'<a class="btn-primary" href="{html.escape(install)}">Install</a>'
+                actions += _copy_button(install, aria_label="Copy install link")
             actions += f'<a class="link-accent" href="{html.escape(ipa)}">IPA</a>'
+            actions += _copy_button(ipa, aria_label="Copy IPA link")
             actions += f'<a class="link-accent" href="{html.escape(archive_log)}">Log</a>'
             if delete_action:
                 actions += (
@@ -178,9 +319,12 @@ def render_index(
                 )
             actions += "</div>"
 
-            build_cell = f'<div class="build-name"><span>{build_name}</span>{status_html}</div>'
+            build_cell = f'<div class="build-name"><span>{build_name}</span>{badges_html}</div>'
             if b.get("date"):
                 build_cell += f'<br><span class="muted">{html.escape(b.get("date") or "")}</span>'
+
+            duration_cell = html.escape(_format_duration(b.get("duration_seconds")))
+            size_cell = html.escape(_format_ipa_size(b.get("ipa_size_bytes")))
 
             sections.append(
                 "<tr>"
@@ -189,11 +333,13 @@ def render_index(
                 f"<td>{html.escape(b.get('commit') or '—')}</td>"
                 f"<td>{html.escape(str(b.get('version') or '—'))} "
                 f"({html.escape(str(b.get('build_number') or '—'))})</td>"
+                f'<td class="meta-cell">{duration_cell}</td>'
+                f'<td class="meta-cell">{size_cell}</td>'
                 f"<td>{actions}</td></tr>"
             )
         sections.append("</tbody></table></div></section>")
 
-    sections.append("</main></body></html>")
+    sections.append(f"</main>\n{_COPY_SCRIPT}\n</body></html>")
     return "\n".join(sections)
 
 
