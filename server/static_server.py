@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -16,8 +17,15 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 from auth import get_access_token, request_authorized, send_unauthorized  # noqa: E402
 from build_delete import BuildDeleteError, delete_build  # noqa: E402
-from ota_index import collect_builds, load_projects_config, render_index  # noqa: E402
+from ota_index import (  # noqa: E402
+    collect_builds,
+    find_latest_build,
+    load_projects_config,
+    render_index,
+)
 from auth_urls import with_access_token  # noqa: E402
+
+SERVER_START_MONO: float = 0.0
 
 
 class OTAHandler(SimpleHTTPRequestHandler):
@@ -32,6 +40,10 @@ class OTAHandler(SimpleHTTPRequestHandler):
 
     def _route_path(self) -> str:
         return urlparse(self.path).path.rstrip("/") or "/"
+
+    @staticmethod
+    def _is_public_path(path: str) -> bool:
+        return path == "/health"
 
     def _check_auth(self) -> bool:
         token = get_access_token()
@@ -66,6 +78,53 @@ class OTAHandler(SimpleHTTPRequestHandler):
             return server_token
         parsed = urlparse(self.path)
         return parse_qs(parsed.query).get("token", [""])[0] or None
+
+    def _serve_health(self, *, head: bool = False) -> None:
+        ota_dir = self._ota_dir()
+        payload = {
+            "ok": True,
+            "uptime_seconds": int(time.monotonic() - SERVER_START_MONO),
+            "ota_builds_dir_writable": os.access(ota_dir, os.W_OK),
+        }
+        if head:
+            self.send_response(200)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        body = json.dumps(payload).encode("utf-8")
+        self._send_bytes(200, body, "application/json; charset=utf-8")
+
+    def _parse_latest_project(self, path: str) -> str | None:
+        prefix = "/latest/"
+        if not path.startswith(prefix):
+            return None
+        project_id = path[len(prefix) :]
+        if not project_id or "/" in project_id:
+            return None
+        return project_id
+
+    def _serve_latest_redirect(self, project_id: str, *, head: bool = False) -> None:
+        projects = load_projects_config(self._projects_json())
+        if project_id not in projects:
+            self.send_error(404, f"Unknown project: {project_id}")
+            return
+
+        latest = find_latest_build(
+            self._ota_dir(),
+            project_id,
+            projects_config=projects,
+        )
+        if latest is None:
+            self.send_error(404, f"No successful builds for project: {project_id}")
+            return
+
+        base = self._base_url()
+        rel_install = f"/{latest['path']}/install.html"
+        target = f"{base}{rel_install}" if base else rel_install
+        location = with_access_token(target, self._effective_token())
+        self.send_response(302)
+        self.send_header("Location", location)
+        self.end_headers()
 
     def _serve_dynamic_index(self) -> None:
         data = self._index_data()
@@ -116,24 +175,40 @@ class OTAHandler(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self) -> None:
+        path = self._route_path()
+        if self._is_public_path(path):
+            if path == "/health":
+                self._serve_health()
+            return
         if not self._check_auth():
             return
-        path = self._route_path()
         if path in ("/", "/index.html"):
             self._serve_dynamic_index()
             return
         if path == "/builds.json":
             self._serve_dynamic_builds_json()
             return
+        latest_project = self._parse_latest_project(path)
+        if latest_project is not None:
+            self._serve_latest_redirect(latest_project)
+            return
         return super().do_GET()
 
     def do_HEAD(self) -> None:
+        path = self._route_path()
+        if self._is_public_path(path):
+            if path == "/health":
+                self._serve_health(head=True)
+            return
         if not self._check_auth():
             return
-        path = self._route_path()
         if path in ("/", "/index.html", "/builds.json"):
             self.send_response(200)
             self.end_headers()
+            return
+        latest_project = self._parse_latest_project(path)
+        if latest_project is not None:
+            self._serve_latest_redirect(latest_project, head=True)
             return
         return super().do_HEAD()
 
@@ -147,6 +222,8 @@ class OTAHandler(SimpleHTTPRequestHandler):
 
 
 def main() -> None:
+    global SERVER_START_MONO
+    SERVER_START_MONO = time.monotonic()
     root = Path(os.environ["OTA_BUILDS_DIR"]).resolve()
     port = int(os.environ.get("OTA_PORT", "8765"))
     token = get_access_token()

@@ -110,8 +110,16 @@ Verify:
 
 ```bash
 source config/env.sh
+curl -sf "http://127.0.0.1:${OTA_PORT:-8765}/health"              # → 200 without token
+curl -sfI "http://127.0.0.1:${OTA_PORT:-8765}/health"            # → HEAD 200
 curl -I "https://ota.yourdomain.com/"                              # → 401 without token
 curl -I "https://ota.yourdomain.com/?token=$OTA_ACCESS_TOKEN"    # → 200
+```
+
+Stable install URL (redirects to the newest successful build):
+
+```bash
+curl -sI "https://ota.yourdomain.com/latest/my-app?token=$OTA_ACCESS_TOKEN" | grep -i location
 ```
 
 ---

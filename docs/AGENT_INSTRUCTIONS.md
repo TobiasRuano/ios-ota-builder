@@ -8,8 +8,9 @@ You are building an iOS app that will be installed over-the-air (Ad Hoc) on an i
 2. **Pass `project-id`, never a repo path.** The pipeline resolves paths from `config/projects.json`.
 3. **The pipeline does not modify the iOS app repo.** You fix code in the app project; the pipeline builds and publishes. When `auto_increment_build` is enabled for a project in `config/projects.json`, the pipeline assigns the next `CFBundleVersion` via an `xcodebuild` override (counter stored in `config/build_counters.json`).
 4. **Maximum 3 build attempts** per task. After each failure, read `diagnostics.md` in the build output folder.
-5. **Return `install_url` and `dashboard_url`** from the JSON output when the build succeeds.
-   - `install_url` — for the user to install this build on iPhone (Safari).
+5. **Return `install_url`, `latest_install_url`, and `dashboard_url`** from the JSON output when the build succeeds.
+   - `install_url` — for the user to install **this** build on iPhone (Safari).
+   - `latest_install_url` — stable bookmark (`/latest/<project-id>`) that always redirects to the newest successful build.
    - `dashboard_url` — to browse, download, or delete past builds (bookmark once).
 
 ## Build command
@@ -52,6 +53,12 @@ If status == "failure" → read diagnostics.md → fix code → retry (max 3)
 Return install_url + dashboard_url to user
 ```
 
+Stable install URL for bookmarks:
+
+```bash
+/path/to/ios-ota-builder/scripts/print_install_url.sh --latest my-app
+```
+
 ## Success output (JSON)
 
 ```json
@@ -62,6 +69,7 @@ Return install_url + dashboard_url to user
   "commit": "abc1234",
   "duration_seconds": 312,
   "install_url": "https://ota.example.com/my-app/2026-06-25_2015_main/install.html?token=...",
+  "latest_install_url": "https://ota.example.com/latest/my-app?token=...",
   "dashboard_url": "https://ota.example.com/?token=...",
   "manifest_url": "https://...",
   "ipa_url": "https://...",
@@ -69,6 +77,9 @@ Return install_url + dashboard_url to user
   "build_number": "42"
 }
 ```
+
+- `install_url` points at **this** build folder.
+- `latest_install_url` is a stable redirect (`GET /latest/<project-id>`) to the newest successful build — safe to bookmark for agents and testers.
 
 When `auto_increment_build` is enabled, `build_number` reflects the overridden `CFBundleVersion` for that OTA build.
 
