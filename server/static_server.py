@@ -17,8 +17,16 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "server"))
 sys.path.insert(0, str(ROOT / "tools"))
 
-from auth import get_access_token, request_authorized, send_unauthorized  # noqa: E402
+from auth import (  # noqa: E402
+    get_access_token,
+    request_authorized,
+    safe_next_path,
+    send_unauthorized,
+)
 from build_delete import BuildDeleteError, delete_build  # noqa: E402
+from credentials import admin_login_enabled, verify_admin_credentials  # noqa: E402
+from login_rate_limit import is_rate_limited, record_failure  # noqa: E402
+from ota_dynamic import parse_ota_artifact_path, render_ota_artifact  # noqa: E402
 from ota_index import (  # noqa: E402
     collect_builds,
     collect_disk_stats,
@@ -27,6 +35,14 @@ from ota_index import (  # noqa: E402
     render_index,
 )
 from auth_urls import with_access_token  # noqa: E402
+from session import (  # noqa: E402
+    clear_session_cookie_header,
+    create_session,
+    destroy_session,
+    get_session_id_from_handler,
+    session_cookie_header,
+)
+from ui_theme import login_html  # noqa: E402
 
 SERVER_START_MONO: float = 0.0
 
@@ -45,8 +61,20 @@ class OTAHandler(SimpleHTTPRequestHandler):
         return urlparse(self.path).path.rstrip("/") or "/"
 
     @staticmethod
-    def _is_public_path(path: str) -> bool:
-        return path == "/health"
+    def _is_public_path(path: str, *, method: str) -> bool:
+        if path == "/health":
+            return True
+        if path == "/login" and method in ("GET", "HEAD"):
+            return True
+        if path == "/api/login" and method == "POST":
+            return True
+        return False
+
+    def _client_ip(self) -> str:
+        forwarded = self.headers.get("X-Forwarded-For", "")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+        return self.client_address[0]
 
     def _check_auth(self) -> bool:
         token = get_access_token()
@@ -96,6 +124,71 @@ class OTAHandler(SimpleHTTPRequestHandler):
             return
         body = json.dumps(payload).encode("utf-8")
         self._send_bytes(200, body, "application/json; charset=utf-8")
+
+    def _serve_login(self) -> None:
+        if not admin_login_enabled():
+            self.send_error(404, "Admin login is not configured")
+            return
+        query = parse_qs(urlparse(self.path).query)
+        next_path = safe_next_path(query.get("next", ["/"])[0])
+        if request_authorized(self, get_access_token()):
+            location = with_access_token(next_path, get_access_token() or None)
+            self.send_response(302)
+            self.send_header("Location", location)
+            self.end_headers()
+            return
+        body = login_html(next_path=next_path).encode("utf-8")
+        self._send_bytes(200, body, "text/html; charset=utf-8")
+
+    def _handle_login(self) -> None:
+        if not admin_login_enabled():
+            self.send_error(404, "Admin login is not configured")
+            return
+
+        client_ip = self._client_ip()
+        if is_rate_limited(client_ip):
+            body = login_html(
+                next_path="/",
+                error="Too many failed attempts. Try again in a few minutes.",
+            ).encode("utf-8")
+            self.send_response(429)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        form = self._parse_form_body()
+        username = form.get("username", "").strip()
+        password = form.get("password", "")
+        next_path = safe_next_path(form.get("next", "/"))
+
+        if not verify_admin_credentials(username, password):
+            record_failure(client_ip)
+            body = login_html(next_path=next_path, error="Invalid username or password.").encode(
+                "utf-8"
+            )
+            self.send_response(401)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        session_id = create_session()
+        redirect = with_access_token(next_path, get_access_token() or None)
+        self.send_response(302)
+        self.send_header("Location", redirect)
+        self.send_header("Set-Cookie", session_cookie_header(session_id))
+        self.end_headers()
+
+    def _handle_logout(self) -> None:
+        destroy_session(get_session_id_from_handler(self))
+        redirect = "/login"
+        self.send_response(302)
+        self.send_header("Location", redirect)
+        self.send_header("Set-Cookie", clear_session_cookie_header())
+        self.end_headers()
 
     def _parse_latest_project(self, path: str) -> str | None:
         prefix = "/latest/"
@@ -178,6 +271,27 @@ class OTAHandler(SimpleHTTPRequestHandler):
         body = json.dumps(data, indent=2).encode("utf-8") + b"\n"
         self._send_bytes(200, body, "application/json; charset=utf-8")
 
+    def _serve_dynamic_ota_artifact(self, path: str) -> bool:
+        parsed = parse_ota_artifact_path(path)
+        if parsed is None:
+            return False
+        project_id, build_dir_name, artifact = parsed
+        rendered = render_ota_artifact(
+            ota_dir=self._ota_dir(),
+            projects_json=self._projects_json(),
+            base_url=self._base_url(),
+            token=self._effective_token(),
+            project_id=project_id,
+            build_dir_name=build_dir_name,
+            artifact=artifact,
+        )
+        if rendered is None:
+            self.send_error(404, "Build artifact not found")
+            return True
+        body, content_type = rendered
+        self._send_bytes(200, body, content_type)
+        return True
+
     def _parse_form_body(self) -> dict[str, str]:
         length = int(self.headers.get("Content-Length", "0"))
         raw = self.rfile.read(length) if length else b""
@@ -212,9 +326,11 @@ class OTAHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:
         path = self._route_path()
-        if self._is_public_path(path):
+        if self._is_public_path(path, method="GET"):
             if path == "/health":
                 self._serve_health()
+            elif path == "/login":
+                self._serve_login()
             return
         if not self._check_auth():
             return
@@ -228,13 +344,18 @@ class OTAHandler(SimpleHTTPRequestHandler):
         if latest_project is not None:
             self._serve_latest_redirect(latest_project)
             return
+        if self._serve_dynamic_ota_artifact(path):
+            return
         return super().do_GET()
 
     def do_HEAD(self) -> None:
         path = self._route_path()
-        if self._is_public_path(path):
+        if self._is_public_path(path, method="HEAD"):
             if path == "/health":
                 self._serve_health(head=True)
+            elif path == "/login":
+                self.send_response(200)
+                self.end_headers()
             return
         if not self._check_auth():
             return
@@ -246,12 +367,23 @@ class OTAHandler(SimpleHTTPRequestHandler):
         if latest_project is not None:
             self._serve_latest_redirect(latest_project, head=True)
             return
+        if parse_ota_artifact_path(path) is not None:
+            self.send_response(200)
+            self.end_headers()
+            return
         return super().do_HEAD()
 
     def do_POST(self) -> None:
+        path = self._route_path()
+        if path == "/api/login":
+            self._handle_login()
+            return
+        if path == "/api/logout":
+            self._handle_logout()
+            return
         if not self._check_auth():
             return
-        if self._route_path() == "/api/builds/delete":
+        if path == "/api/builds/delete":
             self._handle_delete()
             return
         self.send_error(404)
@@ -265,8 +397,16 @@ def main() -> None:
     token = get_access_token()
     os.chdir(root)
     server = ThreadingHTTPServer(("127.0.0.1", port), OTAHandler)
+    auth_bits = []
     if token:
-        print(f"Serving {root} at http://127.0.0.1:{port}/ (auth: token required, dynamic index)")
+        auth_bits.append("token")
+    if admin_login_enabled():
+        auth_bits.append("login")
+    if auth_bits:
+        print(
+            f"Serving {root} at http://127.0.0.1:{port}/ "
+            f"(auth: {', '.join(auth_bits)}, dynamic index)"
+        )
     else:
         print(f"Serving {root} at http://127.0.0.1:{port}/ (auth: disabled)")
     server.serve_forever()

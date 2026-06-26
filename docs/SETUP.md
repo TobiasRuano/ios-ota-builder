@@ -26,7 +26,18 @@ APPLE_TEAM_ID=XXXXXXXXXX
 OTA_HOSTNAME=ota.yourdomain.com
 CLOUDFLARE_TUNNEL_NAME=ios-ota
 CLOUDFLARE_TUNNEL_ID=your-tunnel-uuid
+OTA_ADMIN_USERNAME=admin
+OTA_TOKEN_ROTATE_DAYS=30
 ```
+
+Set an admin password (recommended if you access the dashboard remotely):
+
+```bash
+./scripts/set_admin_password.sh
+./server/restart_server.sh
+```
+
+Without `OTA_ADMIN_PASSWORD_HASH`, the server behaves as before (token-only). With admin login enabled, browsers without a valid token are redirected to `/login`.
 
 ---
 
@@ -104,6 +115,7 @@ Preflight:
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.local.ios-ota-builder.ota-server.plist
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.local.ios-ota-builder.ota-cloudflared.plist
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.local.ios-ota-builder.ota-cleanup.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.local.ios-ota-builder.ota-token-rotation.plist
 ```
 
 Verify:
@@ -112,9 +124,11 @@ Verify:
 source config/env.sh
 curl -sf "http://127.0.0.1:${OTA_PORT:-8765}/health"              # → 200 without token
 curl -sfI "http://127.0.0.1:${OTA_PORT:-8765}/health"            # → HEAD 200
-curl -I "https://ota.yourdomain.com/"                              # → 401 without token
+curl -I "https://ota.yourdomain.com/"                              # → 401 or 302 → /login
 curl -I "https://ota.yourdomain.com/?token=$OTA_ACCESS_TOKEN"    # → 200
 ```
+
+With admin login configured, open `https://ota.yourdomain.com/login` (or `/` and follow the redirect), sign in, and use the dashboard links — they include the current access token automatically.
 
 Stable install URL (redirects to the newest successful build):
 
@@ -233,7 +247,7 @@ The iPhone UDID must be registered in the Ad Hoc provisioning profile.
 |----------|----------|
 | `Missing config/local.env` | `./scripts/setup.sh` |
 | Unknown project-id | Use `my-app`, not the repo path |
-| `401` on OTA | Wrong token → `restart_server.sh` |
+| `401` on OTA | Wrong or rotated token → sign in at `/login`, or use `print_dashboard_url.sh` on the Mac |
 | `502` on Cloudflare | Local server down + tunnel active |
 | Export/signing failed | `verify_signing.sh`; UDID; Distribution certificate |
 
@@ -241,13 +255,43 @@ Failure logs: `OTA-Builds/<project>/<build>/diagnostics.md`
 
 ---
 
-## Rotate token
+## Admin login and token rotation
+
+### Admin login
+
+Single admin account (not multi-user). Credentials live in `config/local.env`:
+
+- `OTA_ADMIN_USERNAME` (default `admin`)
+- `OTA_ADMIN_PASSWORD_HASH` (PBKDF2; set via `./scripts/set_admin_password.sh`)
+
+After login, the server sets an `HttpOnly` session cookie (`OTA_SESSION`, 7 days by default). The dashboard and delete actions work with either:
+
+- a valid session cookie, or
+- the current `OTA_ACCESS_TOKEN` (`?token=` / `Bearer`)
+
+iOS OTA installs still require the access token in manifest/IPA URLs. The server regenerates `install.html` and `manifest.plist` on each request with the **current** token, so old builds keep working after rotation.
+
+### Automatic token rotation
+
+In `config/local.env`:
+
+```bash
+OTA_TOKEN_ROTATE_DAYS=30   # 0 = disabled (manual rotation only)
+OTA_TOKEN_CREATED_AT=      # set automatically when the token is generated
+```
+
+Daily check via LaunchAgent (`ota-token-rotation`, 04:00). When the interval elapses:
+
+1. `./scripts/generate_access_token.sh` writes a new token
+2. `./server/restart_server.sh` reloads the server
+
+**Remote recovery after rotation:** open your OTA URL → sign in → dashboard links use the new token. Bookmarked URLs with an old `?token=` stop working (by design).
+
+Manual rotation (any time):
 
 ```bash
 ./scripts/generate_access_token.sh
 ./server/restart_server.sh
 ```
 
-The token **does not expire on its own**. It is a fixed secret in `config/local.env` until you rotate it manually with `./scripts/generate_access_token.sh`. You can bookmark `dashboard_url` without issue.
-
-It only stops working if you rotate the token (then you need the new link from the agent or `./scripts/print_dashboard_url.sh`).
+Local scripts on the Mac (`agent_build_ota.sh`, `print_dashboard_url.sh`) read the new token from `config/local.env` automatically.

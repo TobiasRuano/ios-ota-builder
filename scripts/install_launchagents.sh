@@ -36,9 +36,12 @@ render_plist "$ROOT/launchd/com.local.ios-ota-builder.ota-nginx.plist.template" 
   "${PREFIX}.ota-nginx.plist"
 render_plist "$ROOT/launchd/com.local.ios-ota-builder.ota-cleanup.plist.template" \
   "${PREFIX}.ota-cleanup.plist"
+render_plist "$ROOT/launchd/com.local.ios-ota-builder.ota-token-rotation.plist.template" \
+  "${PREFIX}.ota-token-rotation.plist"
 
 echo ""
 echo "Load services:"
 echo "  launchctl bootstrap gui/\$(id -u) $DEST/${PREFIX}.ota-server.plist"
 echo "  launchctl bootstrap gui/\$(id -u) $DEST/${PREFIX}.ota-cloudflared.plist"
 echo "  launchctl bootstrap gui/\$(id -u) $DEST/${PREFIX}.ota-cleanup.plist"
+echo "  launchctl bootstrap gui/\$(id -u) $DEST/${PREFIX}.ota-token-rotation.plist"

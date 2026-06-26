@@ -119,7 +119,7 @@ This roadmap does **not** aim to replace:
 - **TestFlight** or App Store distribution
 - **CI platforms** (GitHub Actions, Bitrise) — the Mac remains the build server
 - **CocoaPods / `.xcworkspace`** projects
-- **Multi-user auth** or per-tester tokens (single shared token is intentional for personal use)
+- **Multi-user auth** or per-tester tokens (single admin login + shared OTA token is intentional for personal use)
 
 ---
 
