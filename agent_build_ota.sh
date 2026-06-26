@@ -21,10 +21,11 @@ usage() {
 Usage: agent_build_ota.sh [options] <project-id>
 
 Options:
-  --debug     Archive/export using Debug configuration (overrides projects.json)
-  --release   Archive/export using Release configuration (overrides projects.json)
-  --notes TEXT  Manual release notes (overrides auto-generated git log notes)
-  -h, --help  Show this help
+  --debug              Archive/export using Debug configuration (overrides projects.json)
+  --release            Archive/export using Release configuration (overrides projects.json)
+  --workspace-path P   Build from this app repo path (e.g. a git worktree)
+  --notes TEXT         Manual release notes (overrides auto-generated git log notes)
+  -h, --help           Show this help
 
 Examples:
   agent_build_ota.sh dev-quotes
@@ -37,6 +38,7 @@ EOF
 parse_args() {
   PROJECT_ID=""
   OTA_CONFIGURATION_OVERRIDE=""
+  OTA_WORKSPACE_PATH=""
   OTA_RELEASE_NOTES=""
 
   while [[ $# -gt 0 ]]; do
@@ -48,6 +50,15 @@ parse_args() {
       --release)
         OTA_CONFIGURATION_OVERRIDE="Release"
         shift
+        ;;
+      --workspace-path)
+        if [[ $# -lt 2 ]]; then
+          log_error "--workspace-path requires a path argument"
+          usage
+          exit "$EC_ENVIRONMENT"
+        fi
+        OTA_WORKSPACE_PATH="$2"
+        shift 2
         ;;
       --notes)
         if [[ $# -lt 2 ]]; then
@@ -86,7 +97,7 @@ parse_args() {
     esac
   done
 
-  export OTA_CONFIGURATION_OVERRIDE PROJECT_ID OTA_RELEASE_NOTES
+  export OTA_CONFIGURATION_OVERRIDE PROJECT_ID OTA_WORKSPACE_PATH OTA_RELEASE_NOTES
 }
 
 on_exit() {
@@ -128,6 +139,14 @@ main() {
 
   load_config
   load_project "$PROJECT_ID"
+  if [[ -n "${OTA_WORKSPACE_PATH:-}" ]]; then
+    if [[ ! -d "$OTA_WORKSPACE_PATH" ]]; then
+      log_error "Workspace path not found: $OTA_WORKSPACE_PATH"
+      exit "$EC_ENVIRONMENT"
+    fi
+    PROJECT_PATH="$(cd "$OTA_WORKSPACE_PATH" && pwd)"
+    export PROJECT_PATH
+  fi
   git_metadata "$PROJECT_PATH"
   if ! check_git_worktree "$PROJECT_PATH"; then
     FAILED_STAGE="environment"

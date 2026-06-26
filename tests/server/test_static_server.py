@@ -250,3 +250,43 @@ def test_read_limited_form_body_rejects_oversized_payload() -> None:
     form = harness.handler._read_limited_form_body()
     assert form is None
     assert errors == [413]
+
+
+def test_handle_build_trigger_schedules_job(
+    ota_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    projects_json = tmp_path / "projects.json"
+    projects_json.write_text(
+        json.dumps({"projects": {"my-app": {"display_name": "My App", "path": str(tmp_path)}}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("OTA_BUILDS_DIR", str(ota_dir))
+    monkeypatch.setenv("OTA_PROJECTS_JSON", str(projects_json))
+
+    scheduled: list[str] = []
+
+    def fake_schedule_job(root: Path, job_id: str) -> None:
+        scheduled.append(job_id)
+
+    monkeypatch.setattr("static_server.get_project_repo_path", lambda *a, **k: tmp_path)
+    monkeypatch.setattr("static_server.active_job_for_project", lambda *a, **k: None)
+    monkeypatch.setattr("static_server.schedule_job", fake_schedule_job)
+
+    harness = HandlerHarness(
+        "/api/builds/trigger",
+        body=b"project_id=my-app&branch=main&git_mode=auto",
+    )
+    sent: list[tuple[int, bytes]] = []
+
+    def capture_send(status: int, body: bytes, content_type: str) -> None:
+        sent.append((status, body))
+
+    harness.handler._send_bytes = capture_send  # type: ignore[method-assign]
+    harness.handler._handle_build_trigger()
+
+    assert sent[0][0] == 202
+    payload = json.loads(sent[0][1].decode("utf-8"))
+    assert payload["project_id"] == "my-app"
+    assert scheduled

@@ -7,7 +7,15 @@
       "scheme": "MyApp",
       "configuration": "Release",
       "bundle_id": "com.example.myapp",
-      "auto_increment_build": true
+      "auto_increment_build": true,
+      "git": {
+        "default_mode": "auto",
+        "remote": "origin",
+        "worktree_base": "/Users/YOU/.ota-worktrees/my-app",
+        "secrets_sync": [
+          "Config/Secrets.xcconfig"
+        ]
+      }
     }
   }
 }

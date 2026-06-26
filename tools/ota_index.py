@@ -206,6 +206,262 @@ _RESTART_SCRIPT = """<script>
 })();
 </script>"""
 
+_BUILD_SCRIPT = """<script>
+(function () {
+  var POLL_MS = 4000;
+
+  function apiUrl(path) {
+    return path + (path.indexOf("?") >= 0 ? "&" : "?") + "token=" + encodeURIComponent(window.__OTA_TOKEN || "");
+  }
+
+  function setStatus(panel, text, isWarn) {
+    var el = panel.querySelector(".build-git-status");
+    if (!el) return;
+    el.textContent = text;
+    el.classList.toggle("warn", !!isWarn);
+  }
+
+  function setProgress(panel, text, active) {
+    var el = panel.querySelector(".build-panel-progress");
+    if (!el) return;
+    el.textContent = text || "";
+    el.classList.toggle("is-active", !!active);
+  }
+
+  function fillBranchSelect(select, data, current) {
+    while (select.options.length) select.remove(0);
+    var groups = [
+      ["Local", data.local || []],
+      ["Remote", data.remote || []]
+    ];
+    groups.forEach(function (pair) {
+      var label = pair[0];
+      var branches = pair[1];
+      if (!branches.length) return;
+      var og = document.createElement("optgroup");
+      og.label = label;
+      branches.forEach(function (b) {
+        var opt = document.createElement("option");
+        opt.value = b;
+        opt.textContent = b;
+        if (b === current) opt.selected = true;
+        og.appendChild(opt);
+      });
+      select.appendChild(og);
+    });
+    if (!select.options.length) {
+      var empty = document.createElement("option");
+      empty.value = "";
+      empty.textContent = current || "(current branch)";
+      select.appendChild(empty);
+    }
+  }
+
+  function findPanelForToggle(toggle) {
+    var panelId = toggle.getAttribute("aria-controls");
+    if (panelId) {
+      var byId = document.getElementById(panelId);
+      if (byId) return byId;
+    }
+    var card = toggle.closest(".project-card");
+    return card ? card.querySelector(".build-panel") : null;
+  }
+
+  function findToggleForPanel(panel) {
+    var panelId = panel.id;
+    if (!panelId) return null;
+    var card = panel.closest(".project-card");
+    if (!card) return null;
+    return card.querySelector('.btn-new-build-toggle[aria-controls="' + panelId + '"]');
+  }
+
+  function openBuildPanel(panel) {
+    panel.hidden = false;
+    var toggle = findToggleForPanel(panel);
+    if (toggle) toggle.setAttribute("aria-expanded", "true");
+    if (!panel.dataset.statusLoaded) {
+      loadGitStatus(panel);
+    }
+  }
+
+  function closeBuildPanel(panel) {
+    panel.hidden = true;
+    var toggle = findToggleForPanel(panel);
+    if (toggle) toggle.setAttribute("aria-expanded", "false");
+  }
+
+  function toggleBuildPanel(panel) {
+    if (panel.hidden) {
+      openBuildPanel(panel);
+    } else {
+      closeBuildPanel(panel);
+    }
+  }
+
+  function loadGitStatus(panel) {
+    var projectId = panel.getAttribute("data-project-id");
+    var statusUrl = panel.getAttribute("data-git-status-url");
+    if (!statusUrl) return;
+    fetch(apiUrl(statusUrl))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.error) {
+          setStatus(panel, data.error, true);
+          return;
+        }
+        panel.dataset.statusLoaded = "1";
+        var branch = data.branch || "unknown";
+        var commit = data.commit || "unknown";
+        var parts = [branch + " @ " + commit];
+        if (data.dirty_count > 0) {
+          parts.push(data.dirty_count + " uncommitted change(s)");
+        }
+        if (data.has_conflicts) {
+          parts.push("merge conflicts");
+        }
+        if (data.build_locked) {
+          parts.push("build lock active");
+        }
+        setStatus(panel, parts.join(" · "), data.dirty_count > 0 || data.has_conflicts);
+        var select = panel.querySelector(".build-branch-select");
+        if (select && !select.dataset.loaded) {
+          select.dataset.loaded = "1";
+          var branchesUrl = panel.getAttribute("data-git-branches-url");
+          if (branchesUrl) {
+            fetch(apiUrl(branchesUrl))
+              .then(function (r) { return r.json(); })
+              .then(function (br) { fillBranchSelect(select, br, branch); })
+              .catch(function () {});
+          }
+        }
+        var startBtn = panel.querySelector(".btn-build-start");
+        if (startBtn) {
+          startBtn.disabled = !!(data.has_conflicts || data.active_job);
+        }
+        if (data.active_job && data.active_job.id) {
+          pollJob(panel, data.active_job.id);
+        }
+      })
+      .catch(function () {
+        setStatus(panel, "Could not load git status", true);
+      });
+  }
+
+  function pollJob(panel, jobId) {
+    var jobsUrl = panel.getAttribute("data-jobs-url");
+    if (!jobsUrl) return;
+    var jobUrl = jobsUrl.replace(/\\/?$/, "") + "/" + encodeURIComponent(jobId);
+    setProgress(panel, "Build in progress…", true);
+    var startBtn = panel.querySelector(".btn-build-start");
+    if (startBtn) startBtn.disabled = true;
+
+    function check() {
+      fetch(apiUrl(jobUrl))
+        .then(function (r) { return r.json(); })
+        .then(function (job) {
+          if (!job || job.error) return;
+          var st = job.status || "";
+          if (st === "queued" || st === "preparing" || st === "building") {
+            setProgress(panel, "Build " + st + "…", true);
+            setTimeout(check, POLL_MS);
+            return;
+          }
+          if (st === "success") {
+            setProgress(panel, "Build succeeded — refreshing…", false);
+            setTimeout(function () { window.location.reload(); }, 1200);
+            return;
+          }
+          setProgress(panel, job.error || "Build failed", true);
+          if (startBtn) startBtn.disabled = false;
+          loadGitStatus(panel);
+        })
+        .catch(function () {
+          setTimeout(check, POLL_MS);
+        });
+    }
+    check();
+  }
+
+  document.querySelectorAll(".build-panel").forEach(function (panel) {
+    var statusUrl = panel.getAttribute("data-git-status-url");
+    if (!statusUrl) return;
+    fetch(apiUrl(statusUrl))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.active_job && data.active_job.id) {
+          openBuildPanel(panel);
+        }
+      })
+      .catch(function () {});
+  });
+
+  document.addEventListener("click", function (e) {
+    var toggleBtn = e.target.closest(".btn-new-build-toggle");
+    if (toggleBtn) {
+      var togglePanel = findPanelForToggle(toggleBtn);
+      if (togglePanel) toggleBuildPanel(togglePanel);
+      return;
+    }
+
+    var cancelBtn = e.target.closest(".btn-build-cancel");
+    if (cancelBtn) {
+      var cancelPanel = cancelBtn.closest(".build-panel");
+      if (cancelPanel) closeBuildPanel(cancelPanel);
+      return;
+    }
+
+    var fetchBtn = e.target.closest(".btn-build-fetch");
+    if (fetchBtn) {
+      var panel = fetchBtn.closest(".build-panel");
+      var url = panel.getAttribute("data-git-fetch-url");
+      fetchBtn.disabled = true;
+      fetch(apiUrl(url), {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "project_id=" + encodeURIComponent(panel.getAttribute("data-project-id"))
+      })
+        .then(function (r) { return r.json(); })
+        .then(function () {
+          var select = panel.querySelector(".build-branch-select");
+          if (select) select.dataset.loaded = "";
+          loadGitStatus(panel);
+        })
+        .finally(function () { fetchBtn.disabled = false; });
+      return;
+    }
+
+    var startBtn = e.target.closest(".btn-build-start");
+    if (!startBtn || startBtn.disabled) return;
+    var panel = startBtn.closest(".build-panel");
+    var triggerUrl = panel.getAttribute("data-trigger-url");
+    var branch = (panel.querySelector(".build-branch-select") || {}).value || "";
+    var gitMode = (panel.querySelector(".build-git-mode") || {}).value || "auto";
+    var config = (panel.querySelector(".build-configuration") || {}).value || "";
+    var body = "project_id=" + encodeURIComponent(panel.getAttribute("data-project-id"))
+      + "&branch=" + encodeURIComponent(branch)
+      + "&git_mode=" + encodeURIComponent(gitMode)
+      + "&configuration=" + encodeURIComponent(config);
+    startBtn.disabled = true;
+    fetch(apiUrl(triggerUrl), {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        if (!res.ok || !res.j.id) {
+          throw new Error((res.j && res.j.error) || "trigger failed");
+        }
+        pollJob(panel, res.j.id);
+      })
+      .catch(function (err) {
+        setProgress(panel, err.message || "Could not start build", true);
+        startBtn.disabled = false;
+      });
+  });
+})();
+</script>"""
+
 _CHEVRON_SVG = (
     '<svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true" focusable="false">'
     '<path fill="currentColor" d="M4.427 6.573a.25.25 0 0 0-.035.385l3.85 3.85a.25.25 0 0 0 '
@@ -809,6 +1065,78 @@ def render_status_panel(status: dict, *, restart_action: str = "") -> str:
     )
 
 
+def render_build_toggle_button(project_id: str) -> str:
+    pid = html.escape(project_id)
+    panel_id = f"build-panel-{pid}"
+    return (
+        f'<button type="button" class="btn-new-build-toggle" '
+        f'aria-expanded="false" aria-controls="{panel_id}">New build</button>'
+    )
+
+
+def _wrap_header_actions(*actions: str) -> str:
+    parts = [action for action in actions if action]
+    if not parts:
+        return ""
+    if len(parts) == 1:
+        return parts[0]
+    return f'<div class="project-header-actions">{"".join(parts)}</div>'
+
+
+def render_build_panel(
+    project_id: str,
+    *,
+    trigger_url: str,
+    git_status_url: str,
+    git_branches_url: str,
+    git_fetch_url: str,
+    jobs_url: str,
+) -> str:
+    pid = html.escape(project_id)
+    panel_id = f"build-panel-{pid}"
+    return (
+        f'<div class="build-panel" id="{panel_id}" hidden data-project-id="{pid}" '
+        f'data-trigger-url="{html.escape(trigger_url)}" '
+        f'data-git-status-url="{html.escape(git_status_url)}" '
+        f'data-git-branches-url="{html.escape(git_branches_url)}" '
+        f'data-git-fetch-url="{html.escape(git_fetch_url)}" '
+        f'data-jobs-url="{html.escape(jobs_url)}">'
+        '<p class="build-git-status build-panel-status muted">Loading git status…</p>'
+        '<div class="build-panel-grid">'
+        '<div class="build-panel-field">'
+        '<label for="branch-' + pid + '">Branch</label>'
+        f'<select class="build-branch-select" id="branch-{pid}">'
+        '<option value="">(current branch)</option>'
+        "</select>"
+        "</div>"
+        '<div class="build-panel-field">'
+        '<label for="mode-' + pid + '">Git mode</label>'
+        f'<select class="build-git-mode" id="mode-{pid}">'
+        '<option value="auto" selected>Auto</option>'
+        '<option value="checkout">Checkout</option>'
+        '<option value="stash_checkout">Stash + checkout</option>'
+        '<option value="worktree">Worktree</option>'
+        "</select>"
+        "</div>"
+        '<div class="build-panel-field">'
+        '<label for="config-' + pid + '">Configuration</label>'
+        f'<select class="build-configuration" id="config-{pid}">'
+        '<option value="">Default (projects.json)</option>'
+        '<option value="Release">Release</option>'
+        '<option value="Debug">Debug</option>'
+        "</select>"
+        "</div>"
+        "</div>"
+        '<div class="build-panel-actions">'
+        '<button type="button" class="btn-build-start">Start build</button>'
+        '<button type="button" class="btn-build-secondary btn-build-fetch">Fetch remotes</button>'
+        '<button type="button" class="btn-build-secondary btn-build-cancel">Cancel</button>'
+        "</div>"
+        '<p class="build-panel-progress" aria-live="polite"></p>'
+        "</div>"
+    )
+
+
 def _project_icon_build(builds: list[dict]) -> dict | None:
     """Return the most recent build that has an extractable app icon."""
     for build in builds:
@@ -825,6 +1153,7 @@ def render_index(
     enable_delete: bool = True,
     enable_restart: bool = True,
     enable_logout: bool = False,
+    enable_build: bool = True,
     ota_dir: Path | None = None,
     server_status: dict | None = None,
     min_disk_mb: int = 5000,
@@ -861,27 +1190,62 @@ def render_index(
 
     delete_action = u("/api/builds/delete") if enable_delete and token else ""
     restart_action = u("/api/server/restart") if enable_restart and token else ""
+    build_enabled = enable_build and bool(token)
+    trigger_url = u("/api/builds/trigger") if build_enabled else ""
+    git_status_base = u("/api/git/status") if build_enabled else ""
+    git_branches_base = u("/api/git/branches") if build_enabled else ""
+    git_fetch_url = u("/api/git/fetch") if build_enabled else ""
+    jobs_url = u("/api/builds/jobs") if build_enabled else ""
+
+    def project_api_url(base: str, pid: str) -> str:
+        joiner = "&" if "?" in base else "?"
+        return f"{base}{joiner}project={html.escape(pid, quote=True)}"
+
+    token_script = ""
+    if token:
+        token_script = f'<script>window.__OTA_TOKEN={json.dumps(token)};</script>'
 
     for project_id, project in data.get("projects", {}).items():
         display = html.escape(project.get("display_name", project_id))
         builds = project.get("builds", [])
+
+        build_panel_html = ""
+        build_toggle_html = ""
+        if build_enabled:
+            build_toggle_html = render_build_toggle_button(project_id)
+            build_panel_html = render_build_panel(
+                project_id,
+                trigger_url=trigger_url,
+                git_status_url=project_api_url(git_status_base, project_id),
+                git_branches_url=project_api_url(git_branches_base, project_id),
+                git_fetch_url=git_fetch_url,
+                jobs_url=jobs_url,
+            )
+
         if not builds:
+            header_actions = _wrap_header_actions(build_toggle_html)
             sections.append(
                 f'<section class="project-card">'
-                f'<div class="project-card-header"><h2>{display}</h2></div>'
+                f'<div class="project-card-header"><h2>{display}</h2>{header_actions}</div>'
+                f"{build_panel_html}"
                 '<p class="empty-state">No builds yet.</p></section>'
             )
             continue
 
         has_successful = any(b.get("status") == "success" for b in builds)
-        header_actions = ""
+        header_action_parts: list[str] = []
+        if build_toggle_html:
+            header_action_parts.append(build_toggle_html)
         if has_successful:
             latest_install_url = u(f"{base}/latest/{project_id}")
-            header_actions = _copy_button(
-                latest_install_url,
-                aria_label=f"Copy latest install link for {project.get('display_name', project_id)}",
-                label="Copy latest",
+            header_action_parts.append(
+                _copy_button(
+                    latest_install_url,
+                    aria_label=f"Copy latest install link for {project.get('display_name', project_id)}",
+                    label="Copy latest",
+                )
             )
+        header_actions = _wrap_header_actions(*header_action_parts)
 
         project_icon_html = ""
         icon_build = _project_icon_build(builds)
@@ -896,6 +1260,7 @@ def render_index(
         sections.append(
             f'<section class="project-card">'
             f'<div class="project-card-header">{title_row}{header_actions}</div>'
+            f"{build_panel_html}"
         )
 
         sections.append(
@@ -974,7 +1339,8 @@ def render_index(
         sections.append(render_status_panel(panel_status, restart_action=restart_action))
 
     sections.append(
-        f"</main>\n{_COPY_SCRIPT}\n{_DROPDOWN_SCRIPT}\n{_RESTART_SCRIPT}\n</body></html>"
+        f"</main>\n{token_script}\n{_COPY_SCRIPT}\n{_DROPDOWN_SCRIPT}\n{_RESTART_SCRIPT}\n"
+        f"{_BUILD_SCRIPT if build_enabled else ''}\n</body></html>"
     )
     return "\n".join(sections)
 

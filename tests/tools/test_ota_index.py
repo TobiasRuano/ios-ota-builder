@@ -257,6 +257,57 @@ def test_render_index_omits_logout_by_default() -> None:
     assert 'action="/api/logout"' not in html
 
 
+def test_render_build_panel_includes_controls() -> None:
+    from ota_index import render_build_panel
+
+    html = render_build_panel(
+        "my-app",
+        trigger_url="/api/builds/trigger?token=secret",
+        git_status_url="/api/git/status?token=secret&project=my-app",
+        git_branches_url="/api/git/branches?token=secret&project=my-app",
+        git_fetch_url="/api/git/fetch?token=secret",
+        jobs_url="/api/builds/jobs?token=secret",
+    )
+    assert "build-panel" in html
+    assert 'id="build-panel-my-app"' in html
+    assert " hidden" in html
+    assert "Start build" in html
+    assert "btn-build-cancel" in html
+    assert 'data-project-id="my-app"' in html
+    assert "build-panel-title" not in html
+
+
+def test_render_build_toggle_button() -> None:
+    from ota_index import render_build_toggle_button
+
+    html = render_build_toggle_button("my-app")
+    assert 'class="btn-new-build-toggle"' in html
+    assert 'aria-controls="build-panel-my-app"' in html
+    assert 'aria-expanded="false"' in html
+    assert "New build" in html
+
+
+def test_render_index_includes_build_panel_when_token_present() -> None:
+    data = {
+        "generated_at": "2025-06-26T12:00:00Z",
+        "projects": {"my-app": {"display_name": "My App", "builds": []}},
+    }
+    html = render_index(data, "https://ota.example.com", "secret")
+    assert "build-panel" in html
+    assert 'class="build-panel" id="build-panel-my-app" hidden' in html
+    assert "btn-new-build-toggle" in html
+    assert "btn-build-start" in html
+    assert "/api/builds/trigger?token=secret" in html
+    assert "window.__OTA_TOKEN" in html
+
+
+def test_render_index_omits_build_panel_without_token() -> None:
+    data = {"generated_at": "2025-06-26T12:00:00Z", "projects": {}}
+    html = render_index(data, "https://ota.example.com", None, enable_build=False)
+    assert 'class="build-panel"' not in html
+    assert 'class="btn-build-start"' not in html
+
+
 def test_collect_builds_includes_release_notes(ota_dir: Path, projects_config: dict) -> None:
     build_dir = write_success_build(ota_dir, "my-app", "06-26-42")
     summary = json.loads((build_dir / "summary.json").read_text(encoding="utf-8"))
