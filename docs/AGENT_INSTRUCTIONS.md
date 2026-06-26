@@ -12,7 +12,7 @@ You are building an iOS app that will be installed over-the-air (Ad Hoc) on an i
    - `install_url` — for the user to install **this** build on iPhone (Safari).
    - `latest_install_url` — stable bookmark (`/latest/<project-id>`) that always redirects to the newest successful build.
    - `dashboard_url` — to browse, download, or delete past builds (bookmark once).
-6. **After modifying Python in `server/` or `tools/`, run unit tests before finishing.** Use `./scripts/run_tests.sh` (works on Linux and macOS). Fix any failures before committing or handing off.
+6. **After modifying Python in `server/` or `tools/`, or shell helpers in `scripts/lib/`, run unit tests before finishing.** Use `./scripts/run_tests.sh` (works on Linux and macOS). Fix any failures before committing or handing off.
 
 ## Build command
 
@@ -45,7 +45,7 @@ agent_build_ota.sh --release my-app  # force Release
 ```
 Modify code
     ↓
-If Python changed in server/ or tools/ → ./scripts/run_tests.sh
+If Python changed in server/ or tools/, or shell helpers in scripts/lib/ → ./scripts/run_tests.sh
     ↓
 agent_build_ota.sh <project-id>
     ↓
