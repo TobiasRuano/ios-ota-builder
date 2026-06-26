@@ -28,11 +28,17 @@ def css_reset_and_tokens() -> str:
   --border-subtle: #dce2eb;
   --accent: #3568d4;
   --accent-hover: #2d57b8;
+  --btn-primary: #3568d4;
+  --btn-primary-hover: #2d57b8;
   --success: #378564;
   --status-active: #5ebc93;
   --danger: #c94a4a;
   --danger-hover: #a83d3d;
+  --btn-danger: #c94a4a;
+  --btn-danger-hover: #a83d3d;
   --focus: #3568d4;
+  --qr-bg: #ffffff;
+  --qr-fg: #172033;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -49,8 +55,6 @@ def css_reset_and_tokens() -> str:
     --accent-hover: #4a7ad4;
     --success: #5ebc93;
     --status-active: #6fd4a8;
-    --danger: #e06a6a;
-    --danger-hover: #c94a4a;
     --focus: #5b8def;
   }
 }
@@ -157,18 +161,18 @@ def css_buttons() -> str:
 }
 
 .btn-primary {
-  background: var(--accent);
+  background: var(--btn-primary);
   color: #fff;
 }
 
-.btn-primary:hover { background: var(--accent-hover); color: #fff; }
+.btn-primary:hover { background: var(--btn-primary-hover); color: #fff; }
 
 .btn-danger {
-  background: var(--danger);
+  background: var(--btn-danger);
   color: #fff;
 }
 
-.btn-danger:hover { background: var(--danger-hover); }
+.btn-danger:hover { background: var(--btn-danger-hover); }
 
 .btn-primary.block {
   display: block;
