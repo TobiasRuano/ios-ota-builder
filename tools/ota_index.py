@@ -598,6 +598,14 @@ def _build_badges(build: dict) -> str:
     return f'<div class="badge-group">{"".join(badges)}</div>'
 
 
+def _project_icon_build(builds: list[dict]) -> dict | None:
+    """Return the most recent build that has an extractable app icon."""
+    for build in builds:
+        if build.get("has_icon") and build.get("icon_path"):
+            return build
+    return None
+
+
 def render_index(
     data: dict,
     base_url: str,
@@ -649,17 +657,16 @@ def render_index(
                 label="Copy latest",
             )
 
-        latest_icon_html = ""
-        for b in builds:
-            if b.get("is_latest") and b.get("has_icon") and b.get("icon_path"):
-                icon_src = u(f"{base}{b['icon_path']}")
-                latest_icon_html = (
-                    f'<img class="app-icon" src="{html.escape(icon_src)}" alt="" '
-                    f'width="40" height="40">'
-                )
-                break
+        project_icon_html = ""
+        icon_build = _project_icon_build(builds)
+        if icon_build:
+            icon_src = u(f"{base}{icon_build['icon_path']}")
+            project_icon_html = (
+                f'<img class="app-icon" src="{html.escape(icon_src)}" alt="" '
+                f'width="40" height="40">'
+            )
 
-        title_row = f'<div class="project-title-row">{latest_icon_html}<h2>{display}</h2></div>'
+        title_row = f'<div class="project-title-row">{project_icon_html}<h2>{display}</h2></div>'
         sections.append(
             f'<section class="project-card">'
             f'<div class="project-card-header">{title_row}{header_actions}</div>'
@@ -707,18 +714,9 @@ def render_index(
                     confirm_msg=confirm_msg,
                 )
 
-            build_icon_html = ""
-            if b.get("has_icon") and b.get("icon_path"):
-                icon_src = u(f"{base}{b['icon_path']}")
-                build_icon_html = (
-                    f'<img class="build-icon" src="{html.escape(icon_src)}" alt="" '
-                    f'width="28" height="28">'
-                )
-
             build_cell = (
                 f'<div class="build-name" title="{full_name}">'
-                f'<div class="project-title-row">{build_icon_html}'
-                f'<span class="build-label">{label}</span></div>{badges_html}</div>'
+                f'<span class="build-label">{label}</span>{badges_html}</div>'
             )
 
             duration_cell = html.escape(_format_duration(b.get("duration_seconds")))

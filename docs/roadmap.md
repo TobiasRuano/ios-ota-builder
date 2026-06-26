@@ -62,7 +62,7 @@ flowchart LR
 | F01 | Rich install page | 3 | P1 | M | Done | [F01](roadmap-features.md#f01) |
 | F02 | QR code on install page | 1 | P0 | S | Done | [F02](roadmap-features.md#f02) |
 | F03 | `/latest/<project-id>` redirect | 1 | P0 | S | Done | [F03](roadmap-features.md#f03) |
-| F04 | App icon from archive | 3 | P1 | M | Planned | [F04](roadmap-features.md#f04) |
+| F04 | App icon from archive | 3 | P1 | M | Done | [F04](roadmap-features.md#f04) |
 | F05 | Auto release notes | 3 | P2 | M | Planned | [F05](roadmap-features.md#f05) |
 | F06 | Copy-to-clipboard links | 1 | P0 | S | Done | [F06](roadmap-features.md#f06) |
 | F07 | Visual badges (Debug/Release, latest) | 1 | P0 | S | Done | [F07](roadmap-features.md#f07) |
@@ -103,8 +103,8 @@ Start here for maximum impact with minimal risk:
 4. ~~**F06** — Copy-to-clipboard on dashboard~~ ✅ Done
 5. ~~**F07** — Debug/Release and “latest” badges~~ ✅ Done
 6. ~~**F15** — macOS notification when build finishes~~ ✅ Done
-7. **F01** — Full rich install page
-8. **F04** — App icon on install + dashboard
+7. ~~**F01** — Full rich install page~~ ✅ Done
+8. ~~**F04** — App icon on install + dashboard~~ ✅ Done
 9. ~~**F08** — IPA size and duration in dashboard table~~ ✅ Done
 10. ~~**F18** — `/health` endpoint for monitoring~~ ✅ Done
 
