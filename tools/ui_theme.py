@@ -850,6 +850,129 @@ def css_status_panel() -> str:
 """
 
 
+def css_build_panel() -> str:
+    return """
+.build-panel {
+  margin: 0 0 1rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.build-panel-title {
+  margin: 0 0 .75rem;
+  font: 600 .82rem "IBM Plex Mono", monospace;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.build-panel-status {
+  margin: 0 0 .75rem;
+  font-size: .85rem;
+  color: var(--text);
+}
+
+.build-panel-status .warn {
+  color: var(--danger);
+  font-weight: 500;
+}
+
+.build-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: .75rem;
+  align-items: end;
+}
+
+.build-panel-field label {
+  display: block;
+  margin-bottom: .25rem;
+  font-size: .75rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.build-panel-field select,
+.build-panel-field input[type="text"] {
+  width: 100%;
+  padding: .45rem .55rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+  font-size: .85rem;
+}
+
+.build-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  align-items: center;
+  margin-top: .75rem;
+}
+
+.btn-build-start {
+  display: inline-block;
+  padding: .45rem .9rem;
+  border: 1px solid var(--btn-primary);
+  border-radius: 6px;
+  background: var(--btn-primary);
+  color: #fff;
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+  font-size: .85rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-build-start:hover:not(:disabled) {
+  background: var(--btn-primary-hover);
+  border-color: var(--btn-primary-hover);
+}
+
+.btn-build-start:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.btn-build-secondary {
+  display: inline-block;
+  padding: .45rem .75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+  font-size: .85rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-build-secondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+.build-panel-progress {
+  margin-top: .65rem;
+  font-size: .82rem;
+  color: var(--muted);
+}
+
+.build-panel-progress.is-active {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+@media (max-width: 640px) {
+  .build-panel-grid {
+    grid-template-columns: 1fr;
+  }
+}
+"""
+
+
 def css_all(*, narrow: bool = False) -> str:
     return "\n".join(
         [
@@ -860,6 +983,7 @@ def css_all(*, narrow: bool = False) -> str:
             css_cards(),
             css_table(),
             css_status_panel(),
+            css_build_panel(),
         ]
     )
 

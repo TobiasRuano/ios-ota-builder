@@ -87,6 +87,7 @@ flowchart LR
 | F26 | Side-by-side build comparison | 5 | P3 | L | Planned | [F26](roadmap-features.md#f26) |
 | F27 | Crash log upload portal | 5 | P3 | L | Planned | [F27](roadmap-features.md#f27) |
 | F28 | macOS menu bar widget | 5 | P3 | L | Planned | [F28](roadmap-features.md#f28) |
+| F29 | Dashboard build trigger | 5 | P1 | L | Done | [F29](roadmap-features.md#f29) |
 
 **Priority:** P0 = do first · P1 = high value · P2 = nice to have · P3 = future  
 **Effort:** S = small (hours) · M = medium (1–2 days) · L = large (multi-day)
