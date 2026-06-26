@@ -12,7 +12,7 @@ OTA_BUILDER_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$OTA_BUILDER_ROOT/scripts/lib/common.sh"
 
 BUILD_COUNTERS_FILE="$OTA_BUILDER_ROOT/config/build_counters.json"
-BUILD_COUNTER_LOCK="$OTA_BUILDER_ROOT/config/build_counters.lock"
+BUILD_COUNTER_LOCK_DIR="$OTA_BUILDER_ROOT/config/build_counters.lock.d"
 
 assert_integer_build() {
   local value="${1:-}"
@@ -21,23 +21,28 @@ assert_integer_build() {
   if [[ -z "$value" ]]; then
     return 0
   fi
-  if [[ ! "$value" =~ ^[0-9]+$ ]]; then
-    log_error "auto_increment_build requires integer CFBundleVersion values. Found \"$value\" in $source."
-    log "Use an integer build number or disable auto_increment_build."
+  if [[ ! "$value" =~ ^(0|[1-9][0-9]*)$ ]]; then
+    log_error "auto_increment_build requires integer CFBundleVersion values without leading zeros. Found \"$value\" in $source."
+    log "Use an integer build number (e.g. 42, not 010 or 201.4) or disable auto_increment_build."
     exit "$EC_ENVIRONMENT"
   fi
 }
 
 acquire_build_counter_lock() {
-  exec 9>"$BUILD_COUNTER_LOCK"
-  if ! flock -w 30 9; then
-    log_error "Timed out waiting for build counter lock"
-    exit "$EC_ENVIRONMENT"
-  fi
+  local start now
+  start=$(date +%s)
+  while ! mkdir "$BUILD_COUNTER_LOCK_DIR" 2>/dev/null; do
+    sleep 0.1
+    now=$(date +%s)
+    if (( now - start >= 30 )); then
+      log_error "Timed out waiting for build counter lock"
+      exit "$EC_ENVIRONMENT"
+    fi
+  done
 }
 
 release_build_counter_lock() {
-  flock -u 9 2>/dev/null || true
+  rmdir "$BUILD_COUNTER_LOCK_DIR" 2>/dev/null || true
 }
 
 read_next_build() {
@@ -107,7 +112,7 @@ get_max_published_build() {
   while IFS= read -r bn; do
     [[ -z "$bn" || "$bn" == "null" ]] && continue
     assert_integer_build "$bn" "summary"
-    if [[ "$bn" -gt "$max_build" ]]; then
+    if (( 10#${bn} > 10#${max_build} )); then
       max_build="$bn"
     fi
   done < <(find "$builds_dir" -name summary.json -print0 2>/dev/null \
@@ -122,13 +127,13 @@ compute_floor_build() {
   project_build="$(get_project_build_number)"
   published_max="$(get_max_published_build "$PROJECT_ID")"
 
-  if [[ "$project_build" -gt "$published_max" ]]; then
+  if (( 10#${project_build} > 10#${published_max} )); then
     base="$project_build"
   else
     base="$published_max"
   fi
 
-  echo $((base + 1))
+  echo $((10#${base} + 1))
 }
 
 resolve_build_number_locked() {
@@ -141,7 +146,7 @@ resolve_build_number_locked() {
     next_build="$floor"
     write_next_build "$PROJECT_ID" "$next_build"
     log "Auto-increment build: seeded next_build=$next_build for $PROJECT_ID"
-  elif [[ "$stored" -lt "$floor" ]]; then
+  elif (( 10#${stored} < 10#${floor} )); then
     next_build="$floor"
     write_next_build "$PROJECT_ID" "$next_build"
     log "Auto-increment build: bumped stored counter from $stored to $next_build"
@@ -161,7 +166,7 @@ commit_build_number_locked() {
     log_error "commit_build_number: no next_build stored for $PROJECT_ID"
     exit "$EC_ENVIRONMENT"
   fi
-  next_build=$((current + 1))
+  next_build=$((10#${current} + 1))
   write_next_build "$PROJECT_ID" "$next_build"
   log "Auto-increment build: next build will be $next_build"
 }
