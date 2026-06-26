@@ -214,6 +214,125 @@ check_disk_space() {
   fi
 }
 
+build_lock_dir() {
+  printf '%s/.lock-%s' "$OTA_BUILDS_DIR" "$PROJECT_ID"
+}
+
+_read_build_lock_pid() {
+  local lock_dir="$1"
+  local pid_file="$lock_dir/pid"
+
+  if [[ ! -f "$pid_file" ]]; then
+    echo ""
+    return 0
+  fi
+  tr -d '[:space:]' <"$pid_file"
+}
+
+_try_remove_stale_build_lock() {
+  local lock_dir="$1"
+  local holder_pid
+
+  holder_pid="$(_read_build_lock_pid "$lock_dir")"
+  if [[ -z "$holder_pid" ]]; then
+    return 1
+  fi
+  if kill -0 "$holder_pid" 2>/dev/null; then
+    return 1
+  fi
+  log "Removing stale build lock for $PROJECT_ID (pid $holder_pid is not running)"
+  rm -rf "$lock_dir"
+}
+
+_acquire_build_lock_once() {
+  local lock_dir="$1"
+
+  if mkdir "$lock_dir" 2>/dev/null; then
+    printf '%s\n' "$$" >"$lock_dir/pid"
+    return 0
+  fi
+  _try_remove_stale_build_lock "$lock_dir" || true
+  if mkdir "$lock_dir" 2>/dev/null; then
+    printf '%s\n' "$$" >"$lock_dir/pid"
+    return 0
+  fi
+  return 1
+}
+
+_log_build_lock_busy() {
+  local lock_dir="$1"
+  local holder_pid
+
+  holder_pid="$(_read_build_lock_pid "$lock_dir")"
+  if [[ -n "$holder_pid" ]]; then
+    log_error "Another build is already running for project-id '$PROJECT_ID' (pid $holder_pid)."
+  else
+    log_error "Another build is already running for project-id '$PROJECT_ID'."
+  fi
+  log "Set OTA_BUILD_LOCK=wait to block until it finishes, or wait for the other build to complete."
+}
+
+acquire_build_lock() {
+  local lock_dir mode timeout start now holder_pid
+
+  lock_dir="$(build_lock_dir)"
+  mode="${OTA_BUILD_LOCK:-fail}"
+  timeout="${OTA_BUILD_LOCK_TIMEOUT:-30}"
+
+  case "$mode" in
+    fail | wait) ;;
+    *)
+      log_error "Invalid OTA_BUILD_LOCK value: $mode (expected fail or wait)"
+      exit "$EC_ENVIRONMENT"
+      ;;
+  esac
+
+  if _acquire_build_lock_once "$lock_dir"; then
+    BUILD_LOCK_DIR="$lock_dir"
+    BUILD_LOCK_ACQUIRED=true
+    export BUILD_LOCK_DIR BUILD_LOCK_ACQUIRED
+    return 0
+  fi
+
+  if [[ "$mode" == "fail" ]]; then
+    _log_build_lock_busy "$lock_dir"
+    exit "$EC_ENVIRONMENT"
+  fi
+
+  start=$(date +%s)
+  while true; do
+    sleep 0.1
+    if _acquire_build_lock_once "$lock_dir"; then
+      BUILD_LOCK_DIR="$lock_dir"
+      BUILD_LOCK_ACQUIRED=true
+      export BUILD_LOCK_DIR BUILD_LOCK_ACQUIRED
+      return 0
+    fi
+    now=$(date +%s)
+    if (( now - start >= timeout )); then
+      holder_pid="$(_read_build_lock_pid "$lock_dir")"
+      if [[ -n "$holder_pid" ]]; then
+        log_error "Timed out waiting for build lock on '$PROJECT_ID' (held by pid $holder_pid)"
+      else
+        log_error "Timed out waiting for build lock on '$PROJECT_ID'"
+      fi
+      exit "$EC_ENVIRONMENT"
+    fi
+  done
+}
+
+release_build_lock() {
+  local lock_dir="${BUILD_LOCK_DIR:-}"
+
+  if [[ "${BUILD_LOCK_ACQUIRED:-false}" != "true" || -z "$lock_dir" ]]; then
+    return 0
+  fi
+  rm -f "$lock_dir/pid" 2>/dev/null || true
+  rmdir "$lock_dir" 2>/dev/null || true
+  BUILD_LOCK_ACQUIRED=false
+  export BUILD_LOCK_ACQUIRED
+}
+
 write_summary_json() {
   local status="$1"
   local stage="${2:-}"
