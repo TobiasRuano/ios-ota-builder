@@ -18,7 +18,10 @@ sys.path.insert(0, str(ROOT / "server"))
 sys.path.insert(0, str(ROOT / "tools"))
 
 from auth import (  # noqa: E402
+    dashboard_auth_mode,
     get_access_token,
+    is_session_authenticated,
+    is_token_provided_in_request,
     request_authorized,
     safe_next_path,
     send_unauthorized,
@@ -36,6 +39,7 @@ from build_jobs import (  # noqa: E402
 )
 from client_ip import client_ip_from_request  # noqa: E402
 from credentials import admin_login_enabled, verify_admin_credentials  # noqa: E402
+from csrf import csrf_valid, get_csrf_for_handler  # noqa: E402
 from git_api import (  # noqa: E402
     GitApiError,
     check_secrets_sync,
@@ -121,12 +125,18 @@ class OTAHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _ota_token(self) -> str | None:
+        """Server access token for OTA artifact rendering (always required for iOS installs)."""
+        return get_access_token() or None
+
+    def _redirect_token(self) -> str | None:
+        """Token to append to browser redirects; omitted for session-authenticated users."""
+        if dashboard_auth_mode(self) == "session":
+            return None
+        return self._ota_token()
+
     def _effective_token(self) -> str | None:
-        server_token = get_access_token()
-        if server_token:
-            return server_token
-        parsed = urlparse(self.path)
-        return parse_qs(parsed.query).get("token", [""])[0] or None
+        return self._ota_token()
 
     def _serve_health(self, *, head: bool = False) -> None:
         ota_dir = self._ota_dir()
@@ -143,9 +153,13 @@ class OTAHandler(SimpleHTTPRequestHandler):
         body = json.dumps(payload).encode("utf-8")
         self._send_bytes(200, body, "application/json; charset=utf-8")
 
+    def _authorized_redirect(self, path: str) -> str:
+        token = self._redirect_token()
+        return with_access_token(path, token) if token else path
+
     def _serve_api_login_redirect(self) -> None:
         if request_authorized(self, get_access_token()):
-            location = with_access_token("/", get_access_token() or None)
+            location = self._authorized_redirect("/")
             self.send_response(302)
             self.send_header("Location", location)
             self.end_headers()
@@ -161,7 +175,7 @@ class OTAHandler(SimpleHTTPRequestHandler):
         query = parse_qs(urlparse(self.path).query)
         next_path = safe_next_path(query.get("next", ["/"])[0])
         if request_authorized(self, get_access_token()):
-            location = with_access_token(next_path, get_access_token() or None)
+            location = self._authorized_redirect(next_path)
             self.send_response(302)
             self.send_header("Location", location)
             self.end_headers()
@@ -208,7 +222,7 @@ class OTAHandler(SimpleHTTPRequestHandler):
             return
 
         try:
-            session_id = create_session()
+            session_id, _csrf_token = create_session()
         except SessionCapacityError:
             body = login_html(
                 next_path=next_path,
@@ -221,7 +235,7 @@ class OTAHandler(SimpleHTTPRequestHandler):
             self.wfile.write(body)
             return
 
-        redirect = with_access_token(next_path, get_access_token() or None)
+        redirect = next_path
         self.send_response(302)
         self.send_header("Location", redirect)
         self.send_header("Set-Cookie", session_cookie_header(session_id))
@@ -262,7 +276,7 @@ class OTAHandler(SimpleHTTPRequestHandler):
         base = self._base_url()
         rel_install = f"/{latest['path']}/install.html"
         target = f"{base}{rel_install}" if base else rel_install
-        location = with_access_token(target, self._effective_token())
+        location = with_access_token(target, self._redirect_token())
         self.send_response(302)
         self.send_header("Location", location)
         self.end_headers()
@@ -301,15 +315,20 @@ class OTAHandler(SimpleHTTPRequestHandler):
 
     def _serve_dynamic_index(self) -> None:
         data = self._index_data()
-        token = self._effective_token()
+        mode = dashboard_auth_mode(self)
+        token = get_access_token() if mode == "token" else None
+        csrf_token = get_csrf_for_handler(self) if mode == "session" else None
+        authenticated = mode in ("session", "token")
         html_body = render_index(
             data,
             self._base_url(),
-            token,
-            enable_delete=bool(token),
-            enable_restart=bool(token),
+            access_token=token,
+            auth_mode=mode,
+            csrf_token=csrf_token,
+            enable_delete=authenticated,
+            enable_restart=authenticated,
             enable_logout=admin_login_enabled(),
-            enable_build=bool(token),
+            enable_build=authenticated,
             server_status=self._server_status(),
         )
         self._send_bytes(200, html_body.encode("utf-8"), "text/html; charset=utf-8")
@@ -416,10 +435,16 @@ class OTAHandler(SimpleHTTPRequestHandler):
         except GitApiError as exc:
             self._send_json(400, {"error": str(exc)})
 
+    def _reject_csrf(self) -> None:
+        self._send_bytes(403, b"Invalid or missing CSRF token", "text/plain; charset=utf-8")
+
     def _handle_git_fetch(self) -> None:
         form = self._parse_form_body()
         if not form:
             form = self._parse_json_body()
+        if not csrf_valid(self, form):
+            self._reject_csrf()
+            return
         project_id = str(form.get("project_id", "")).strip()
         try:
             repo_path = get_project_repo_path(self._projects_json(), project_id)
@@ -434,6 +459,9 @@ class OTAHandler(SimpleHTTPRequestHandler):
         form = self._parse_form_body()
         if not form:
             form = self._parse_json_body()
+        if not csrf_valid(self, form):
+            self._reject_csrf()
+            return
         project_id = str(form.get("project_id", "")).strip()
         branch = str(form.get("branch", "")).strip()
         git_mode = str(form.get("git_mode", "auto")).strip() or "auto"
@@ -503,9 +531,11 @@ class OTAHandler(SimpleHTTPRequestHandler):
         form = self._read_limited_form_body()
         if form is None:
             return
+        if not csrf_valid(self, form):
+            self._reject_csrf()
+            return
         project_id = form.get("project_id", "").strip()
         build_dir = form.get("build_dir", "").strip()
-        token = get_access_token()
         projects = load_projects_config(self._projects_json())
         allowed = set(projects.keys()) if projects else None
 
@@ -522,12 +552,19 @@ class OTAHandler(SimpleHTTPRequestHandler):
             self._send_bytes(400, body, "text/plain; charset=utf-8")
             return
 
-        redirect = with_access_token("/", token) if token else "/"
+        redirect = self._authorized_redirect("/")
         self.send_response(302)
         self.send_header("Location", redirect)
         self.end_headers()
 
     def _handle_restart(self) -> None:
+        form = self._parse_form_body()
+        if form and not csrf_valid(self, form):
+            self._reject_csrf()
+            return
+        if not form and not csrf_valid(self, None):
+            self._reject_csrf()
+            return
         try:
             schedule_restart(root=ROOT)
         except FileNotFoundError as exc:

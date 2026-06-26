@@ -22,22 +22,28 @@ def get_access_token() -> str:
     return os.environ.get("OTA_ACCESS_TOKEN", "").strip()
 
 
-def _token_authorized(handler: SimpleHTTPRequestHandler, token: str) -> bool:
+def is_token_provided_in_request(handler: SimpleHTTPRequestHandler, token: str) -> bool:
     if not token:
-        return True
+        return False
 
     parsed = urlparse(handler.path)
     query = parse_qs(parsed.query)
     provided = query.get("token", [""])[0]
-    if secrets.compare_digest(provided, token):
+    if provided and secrets.compare_digest(provided, token):
         return True
 
     auth = handler.headers.get("Authorization", "")
     bearer = f"Bearer {token}"
-    if len(auth) == len(bearer) and secrets.compare_digest(auth, bearer):
+    if auth and len(auth) == len(bearer) and secrets.compare_digest(auth, bearer):
         return True
 
     return False
+
+
+def _token_authorized(handler: SimpleHTTPRequestHandler, token: str) -> bool:
+    if not token:
+        return True
+    return is_token_provided_in_request(handler, token)
 
 
 def _session_authorized(handler: SimpleHTTPRequestHandler) -> bool:
@@ -53,6 +59,24 @@ def request_authorized(handler: SimpleHTTPRequestHandler, token: str) -> bool:
     if _session_authorized(handler):
         return True
     return False
+
+
+def is_session_authenticated(handler: SimpleHTTPRequestHandler) -> bool:
+    return _session_authorized(handler)
+
+
+def is_token_authenticated(handler: SimpleHTTPRequestHandler, token: str) -> bool:
+    return _token_authorized(handler, token)
+
+
+def dashboard_auth_mode(handler: SimpleHTTPRequestHandler) -> str:
+    """Return ``session``, ``token``, or ``none`` for an authorized dashboard request."""
+    token = get_access_token()
+    if is_session_authenticated(handler) and not is_token_provided_in_request(handler, token):
+        return "session"
+    if _token_authorized(handler, token):
+        return "token"
+    return "none"
 
 
 def wants_html_login_redirect(handler: SimpleHTTPRequestHandler) -> bool:

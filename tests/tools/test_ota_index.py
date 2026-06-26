@@ -336,13 +336,33 @@ def test_render_index_includes_build_panel_when_token_present() -> None:
         "generated_at": "2025-06-26T12:00:00Z",
         "projects": {"my-app": {"display_name": "My App", "builds": []}},
     }
-    html = render_index(data, "https://ota.example.com", "secret")
+    html = render_index(data, "https://ota.example.com", "secret", auth_mode="token")
     assert "build-panel" in html
     assert 'class="build-panel" id="build-panel-my-app" hidden' in html
     assert "btn-new-build-toggle" in html
     assert "btn-build-start" in html
     assert "/api/builds/trigger?token=secret" in html
+    assert 'window.__OTA_AUTH_MODE="token"' in html
     assert "window.__OTA_TOKEN" in html
+
+
+def test_render_index_session_mode_uses_clean_urls_and_csrf() -> None:
+    data = {
+        "generated_at": "2025-06-26T12:00:00Z",
+        "projects": {"my-app": {"display_name": "My App", "builds": []}},
+    }
+    html = render_index(
+        data,
+        "https://ota.example.com",
+        auth_mode="session",
+        csrf_token="csrf-secret",
+    )
+    assert "/api/builds/trigger" in html
+    assert "?token=" not in html
+    assert "window.__OTA_TOKEN" not in html
+    assert 'window.__OTA_AUTH_MODE="session"' in html
+    assert "window.__OTA_CSRF" in html
+    assert 'credentials: "same-origin"' in html
 
 
 def test_render_index_omits_build_panel_without_token() -> None:
