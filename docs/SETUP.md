@@ -156,8 +156,10 @@ Optional webhook (Slack, Discord, etc.) — set `OTA_WEBHOOK_URL` in `local.env`
 Regression test (Linux or macOS, no real build required):
 
 ```bash
-./scripts/test_notify_build_result.sh
+./scripts/run_tests.sh
 ```
+
+Or only the F15 shell tests: `./scripts/test_notify_build_result.sh`
 
 ---
 
