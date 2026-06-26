@@ -12,23 +12,47 @@ OTA_BUILDER_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$OTA_BUILDER_ROOT/scripts/lib/common.sh"
 
 BUILD_COUNTERS_FILE="$OTA_BUILDER_ROOT/config/build_counters.json"
+BUILD_COUNTER_LOCK="$OTA_BUILDER_ROOT/config/build_counters.lock"
 
-numeric_build() {
+assert_integer_build() {
   local value="${1:-}"
-  if [[ "$value" =~ ^[0-9]+$ ]]; then
-    echo "$value"
-  else
-    echo "0"
+  local source="$2"
+
+  if [[ -z "$value" ]]; then
+    return 0
   fi
+  if [[ ! "$value" =~ ^[0-9]+$ ]]; then
+    log_error "auto_increment_build requires integer CFBundleVersion values. Found \"$value\" in $source."
+    log "Use an integer build number or disable auto_increment_build."
+    exit "$EC_ENVIRONMENT"
+  fi
+}
+
+acquire_build_counter_lock() {
+  exec 9>"$BUILD_COUNTER_LOCK"
+  if ! flock -w 30 9; then
+    log_error "Timed out waiting for build counter lock"
+    exit "$EC_ENVIRONMENT"
+  fi
+}
+
+release_build_counter_lock() {
+  flock -u 9 2>/dev/null || true
 }
 
 read_next_build() {
   local project_id="$1"
+  local value=""
+
   if [[ ! -f "$BUILD_COUNTERS_FILE" ]]; then
     echo ""
     return 0
   fi
-  jq -r --arg id "$project_id" '.[$id].next_build // empty' "$BUILD_COUNTERS_FILE" 2>/dev/null || echo ""
+  value="$(jq -r --arg id "$project_id" '.[$id].next_build // empty' "$BUILD_COUNTERS_FILE" 2>/dev/null || echo "")"
+  if [[ -n "$value" ]]; then
+    assert_integer_build "$value" "counter"
+  fi
+  echo "$value"
 }
 
 write_next_build() {
@@ -49,37 +73,50 @@ write_next_build() {
 
 get_project_build_number() {
   local project_file="$PROJECT_PATH/$XCODEPROJ"
-  local value
+  local raw_value probe_ok=0
 
-  value="$("$XCODEBUILD" -showBuildSettings \
+  set +e
+  raw_value="$("$XCODEBUILD" -showBuildSettings \
     -project "$project_file" \
     -scheme "$SCHEME" \
     -configuration "$CONFIGURATION" 2>/dev/null \
     | awk -F' = ' '/^[[:space:]]*CURRENT_PROJECT_VERSION = / { print $2; exit }')"
+  probe_ok=$?
+  set -e
 
-  numeric_build "$value"
+  if [[ $probe_ok -ne 0 ]] || [[ -z "${raw_value:-}" ]]; then
+    log "Warning: Could not read CURRENT_PROJECT_VERSION (SPM may need resolution); using published builds only"
+    echo "0"
+    return 0
+  fi
+
+  assert_integer_build "$raw_value" "project"
+  echo "$raw_value"
 }
 
 get_max_published_build() {
   local project_id="$1"
   local builds_dir="$OTA_BUILDS_DIR/$project_id"
-  local max_build
+  local bn max_build=0
 
   if [[ ! -d "$builds_dir" ]]; then
     echo "0"
     return 0
   fi
 
-  max_build="$(find "$builds_dir" -name summary.json -print0 2>/dev/null \
-    | xargs -0 jq -r 'select(.status == "success") | .build_number' 2>/dev/null \
-    | grep -E '^[0-9]+$' \
-    | sort -n \
-    | tail -1 || true)"
+  while IFS= read -r bn; do
+    [[ -z "$bn" || "$bn" == "null" ]] && continue
+    assert_integer_build "$bn" "summary"
+    if [[ "$bn" -gt "$max_build" ]]; then
+      max_build="$bn"
+    fi
+  done < <(find "$builds_dir" -name summary.json -print0 2>/dev/null \
+    | xargs -0 jq -r 'select(.status == "success") | .build_number' 2>/dev/null || true)
 
-  numeric_build "$max_build"
+  echo "$max_build"
 }
 
-seed_next_build() {
+compute_floor_build() {
   local project_build published_max base
 
   project_build="$(get_project_build_number)"
@@ -94,23 +131,29 @@ seed_next_build() {
   echo $((base + 1))
 }
 
-cmd_resolve() {
-  local next_build
+resolve_build_number_locked() {
+  local stored floor next_build
 
-  next_build="$(read_next_build "$PROJECT_ID")"
-  if [[ -z "$next_build" ]]; then
-    next_build="$(seed_next_build)"
+  floor="$(compute_floor_build)"
+  stored="$(read_next_build "$PROJECT_ID")"
+
+  if [[ -z "$stored" ]]; then
+    next_build="$floor"
     write_next_build "$PROJECT_ID" "$next_build"
     log "Auto-increment build: seeded next_build=$next_build for $PROJECT_ID"
+  elif [[ "$stored" -lt "$floor" ]]; then
+    next_build="$floor"
+    write_next_build "$PROJECT_ID" "$next_build"
+    log "Auto-increment build: bumped stored counter from $stored to $next_build"
   else
-    next_build="$(numeric_build "$next_build")"
+    next_build="$stored"
     log "Auto-increment build: using CFBundleVersion override $next_build"
   fi
 
   printf '%s\n' "$next_build"
 }
 
-cmd_commit() {
+commit_build_number_locked() {
   local current next_build
 
   current="$(read_next_build "$PROJECT_ID")"
@@ -118,10 +161,21 @@ cmd_commit() {
     log_error "commit_build_number: no next_build stored for $PROJECT_ID"
     exit "$EC_ENVIRONMENT"
   fi
-  current="$(numeric_build "$current")"
   next_build=$((current + 1))
   write_next_build "$PROJECT_ID" "$next_build"
   log "Auto-increment build: next build will be $next_build"
+}
+
+cmd_resolve() {
+  acquire_build_counter_lock
+  resolve_build_number_locked
+  release_build_counter_lock
+}
+
+cmd_commit() {
+  acquire_build_counter_lock
+  commit_build_number_locked
+  release_build_counter_lock
 }
 
 main() {
