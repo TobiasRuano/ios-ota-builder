@@ -852,6 +852,39 @@ def css_status_panel() -> str:
 
 def css_build_panel() -> str:
     return """
+.project-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem;
+}
+
+.btn-new-build-toggle {
+  display: inline-block;
+  padding: .35rem .7rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+  font-size: .85rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-new-build-toggle:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+  background: var(--surface-muted);
+}
+
+.btn-new-build-toggle[aria-expanded="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
 .build-panel {
   margin: 0 0 1rem;
   padding: 1rem 1.1rem;
@@ -968,6 +1001,16 @@ def css_build_panel() -> str:
 @media (max-width: 640px) {
   .build-panel-grid {
     grid-template-columns: 1fr;
+  }
+
+  .project-header-actions {
+    width: 100%;
+  }
+
+  .project-header-actions .btn-new-build-toggle,
+  .project-header-actions .btn-copy {
+    flex: 1 1 auto;
+    text-align: center;
   }
 }
 """
