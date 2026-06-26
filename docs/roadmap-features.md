@@ -773,7 +773,7 @@ None.
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P2 |
 | **Effort** | S |
 | **Phase** | 4 |
@@ -805,11 +805,11 @@ None.
 
 **Acceptance criteria**
 
-- [ ] `--dry-run` completes in under ~30s
-- [ ] No build artifacts written (no `app.ipa`, `summary.json`, or timestamped build folders)
-- [ ] Empty `OTA-Builds/` root creation allowed for disk preflight when missing
-- [ ] Failed check exits non-zero with actionable message
-- [ ] Documented in `--help`
+- [x] `--dry-run` completes in under ~30s
+- [x] No build artifacts written (no `app.ipa`, `summary.json`, or timestamped build folders)
+- [x] Empty `OTA-Builds/` root creation allowed for disk preflight when missing
+- [x] Failed check exits non-zero with actionable message
+- [x] Documented in `--help`
 
 ---
 
