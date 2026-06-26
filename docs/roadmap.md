@@ -79,8 +79,8 @@ flowchart LR
 | F18 | `/health` endpoint | 5 | P2 | S | Done | [F18](roadmap-features.md#f18) |
 | F19 | Server status panel | 5 | P2 | M | Planned | [F19](roadmap-features.md#f19) |
 | F20 | Failed builds in dashboard | 5 | P2 | M | Planned | [F20](roadmap-features.md#f20) |
-| F21 | `ota_status.sh` script | 5 | P2 | S | Planned | [F21](roadmap-features.md#f21) |
-| F22 | Shell aliases documentation | 5 | P3 | S | Planned | [F22](roadmap-features.md#f22) |
+| F21 | `ota_status.sh` script | 5 | P2 | S | Done | [F21](roadmap-features.md#f21) |
+| F22 | Shell aliases documentation | 5 | P3 | S | Done | [F22](roadmap-features.md#f22) |
 | F23 | Changelog between builds | 4 | P2 | M | Planned | [F23](roadmap-features.md#f23) |
 | F24 | Pinned builds (retention exempt) | 5 | P2 | M | Planned | [F24](roadmap-features.md#f24) |
 | F25 | Webhook build on git push | 5 | P3 | L | Planned | [F25](roadmap-features.md#f25) |
