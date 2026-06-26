@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>LAUNCHD_LABEL_PREFIX_PLACEHOLDER.ota-cloudflared</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/opt/homebrew/bin/cloudflared</string>
+		<string>tunnel</string>
+		<string>run</string>
+		<string>CLOUDFLARE_TUNNEL_NAME_PLACEHOLDER</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>StandardOutPath</key>
+	<string>OTA_BUILDER_ROOT_PLACEHOLDER/.server/cloudflared-launchd.log</string>
+	<key>StandardErrorPath</key>
+	<string>OTA_BUILDER_ROOT_PLACEHOLDER/.server/cloudflared-launchd.err</string>
+	<key>WorkingDirectory</key>
+	<string>OTA_BUILDER_ROOT_PLACEHOLDER</string>
+</dict>
+</plist>

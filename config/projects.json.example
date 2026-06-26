@@ -1,0 +1,12 @@
+{
+  "projects": {
+    "my-app": {
+      "display_name": "My App",
+      "path": "/Users/YOU/Developer/my-app",
+      "xcodeproj": "MyApp.xcodeproj",
+      "scheme": "MyApp",
+      "configuration": "Release",
+      "bundle_id": "com.example.myapp"
+    }
+  }
+}

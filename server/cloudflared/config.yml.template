@@ -1,0 +1,10 @@
+# Cloudflare Tunnel configuration template.
+# Rendered to ~/.cloudflared/config.yml by scripts/setup_cloudflared.sh
+
+tunnel: CLOUDFLARE_TUNNEL_ID_PLACEHOLDER
+credentials-file: HOME_PLACEHOLDER/.cloudflared/CLOUDFLARE_TUNNEL_ID_PLACEHOLDER.json
+
+ingress:
+  - hostname: OTA_HOSTNAME_PLACEHOLDER
+    service: http://localhost:OTA_PORT_PLACEHOLDER
+  - service: http_status:404

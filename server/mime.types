@@ -1,0 +1,9 @@
+types {
+    text/html                             html htm shtml;
+    text/css                              css;
+    application/javascript                js;
+    application/json                      json;
+    application/octet-stream              ipa;
+    application/xml                       plist xml;
+    text/plain                            log md txt;
+}

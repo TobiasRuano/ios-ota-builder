@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>LAUNCHD_LABEL_PREFIX_PLACEHOLDER.ota-nginx</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>OTA_BUILDER_ROOT_PLACEHOLDER/server/start_nginx.sh</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>StandardOutPath</key>
+	<string>OTA_BUILDER_ROOT_PLACEHOLDER/.server/nginx-launchd.log</string>
+	<key>StandardErrorPath</key>
+	<string>OTA_BUILDER_ROOT_PLACEHOLDER/.server/nginx-launchd.err</string>
+	<key>WorkingDirectory</key>
+	<string>OTA_BUILDER_ROOT_PLACEHOLDER</string>
+</dict>
+</plist>

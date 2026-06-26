@@ -1,0 +1,26 @@
+OTA-Builds/
+.server/
+__pycache__/
+*.pyc
+*.ipa
+*.xcarchive
+.DS_Store
+*.log
+DerivedData/
+build/
+export/
+.cursor/
+
+# Private operator config (never commit)
+config/local.env
+config/projects.json
+config/access.token
+config/.ExportOptions.adhoc.generated.plist
+config/cloudflared.local.yml
+
+# Env file variants
+.env
+.env.*
+!.env.example
+!*.example
+*.local
