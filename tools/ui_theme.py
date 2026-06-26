@@ -157,6 +157,10 @@ def css_labels() -> str:
   border-radius: 6px;
   font-size: .9rem;
 }
+
+.project-card > .empty-state {
+  margin: 1rem 1.25rem 1.25rem;
+}
 """
 
 
