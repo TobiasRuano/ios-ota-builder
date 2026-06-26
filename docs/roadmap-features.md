@@ -333,7 +333,7 @@ Icon name is read dynamically from `Info.plist` (`CFBundleIconName`, `CFBundleIc
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P2 |
 | **Effort** | M |
 | **Phase** | 3 |
@@ -364,11 +364,11 @@ F23 (changelog) shares git-log logic — implement once, reuse.
 
 **Acceptance criteria**
 
-- [ ] `--notes` overrides auto-generated notes
-- [ ] Auto notes list commits since last successful build for same project
-- [ ] First-ever build shows “Initial build” or empty section
-- [ ] Notes visible on install page
-- [ ] Notes stored in `summary.json`
+- [x] `--notes` overrides auto-generated notes
+- [x] Auto notes list commits since last successful build for same project
+- [x] First-ever build shows “Initial build” or empty section
+- [x] Notes visible on install page
+- [x] Notes stored in `summary.json`
 
 ---
 
@@ -661,7 +661,7 @@ This is the only planned feature that touches project source (build number only)
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P2 |
 | **Effort** | S |
 | **Phase** | 4 |
@@ -684,10 +684,10 @@ None.
 
 **Acceptance criteria**
 
-- [ ] Dirty tree prints warning before archive starts
-- [ ] Clean tree produces no warning
-- [ ] `OTA_FAIL_ON_DIRTY=1` exits with `EC_ENVIRONMENT` (except build-number-only changes when F12 is on)
-- [ ] Warning includes count of modified/untracked files
+- [x] Dirty tree prints warning before archive starts
+- [x] Clean tree produces no warning
+- [x] `OTA_FAIL_ON_DIRTY=1` exits with `EC_ENVIRONMENT` (except build-number-only changes when F12 is on)
+- [x] Warning includes count of modified/untracked files
 
 ---
 

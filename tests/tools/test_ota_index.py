@@ -25,6 +25,8 @@ from ota_index import (
     format_uptime,
     load_projects_config,
     load_summary,
+    render_index,
+    render_status_panel,
 )
 
 
@@ -198,3 +200,69 @@ def test_load_projects_config(tmp_path: Path) -> None:
 
 def test_load_projects_config_missing_file(tmp_path: Path) -> None:
     assert load_projects_config(tmp_path / "missing.json") == {}
+
+
+def test_render_status_panel_includes_restart_button_when_action_provided() -> None:
+    status = {"disk": {"free_gb": 42.1, "ok": True}, "uptime_seconds": 3600}
+    html = render_status_panel(status, restart_action="/?token=secret")
+    assert "btn-restart-server" in html
+    assert 'data-restart-action="/?token=secret"' in html
+    assert "Restart server" in html
+
+
+def test_render_status_panel_omits_restart_button_without_action() -> None:
+    status = {"disk": {"free_gb": 42.1, "ok": True}, "uptime_seconds": 3600}
+    html = render_status_panel(status)
+    assert "btn-restart-server" not in html
+
+
+def test_render_index_includes_restart_controls_when_token_present() -> None:
+    data = {"generated_at": "2025-06-26T12:00:00Z", "projects": {}}
+    status = {"disk": {"free_gb": 42.1, "ok": True}, "uptime_seconds": 3600}
+    html = render_index(
+        data,
+        "https://ota.example.com",
+        "secret",
+        server_status=status,
+    )
+    assert "btn-restart-server" in html
+    assert "/api/server/restart?token=secret" in html
+    assert "pollHealth" in html
+
+
+def test_render_index_omits_restart_controls_without_token() -> None:
+    data = {"generated_at": "2025-06-26T12:00:00Z", "projects": {}}
+    status = {"disk": {"free_gb": 42.1, "ok": True}, "uptime_seconds": 3600}
+    html = render_index(
+        data,
+        "https://ota.example.com",
+        None,
+        enable_restart=False,
+        server_status=status,
+    )
+    assert '<button type="button" class="btn-restart-server"' not in html
+    assert 'data-restart-action="/api/server/restart' not in html
+
+
+def test_collect_builds_includes_release_notes(ota_dir: Path, projects_config: dict) -> None:
+    build_dir = write_success_build(ota_dir, "my-app", "06-26-42")
+    summary = json.loads((build_dir / "summary.json").read_text(encoding="utf-8"))
+    summary["release_notes"] = "Fixed login crash"
+    (build_dir / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
+
+    data = collect_builds(ota_dir, projects_config)
+    builds = data["projects"]["my-app"]["builds"]
+    assert builds[0]["release_notes"] == "Fixed login crash"
+
+
+def test_render_index_includes_build_notes_details(ota_dir: Path, projects_config: dict) -> None:
+    build_dir = write_success_build(ota_dir, "my-app", "06-26-42")
+    summary = json.loads((build_dir / "summary.json").read_text(encoding="utf-8"))
+    summary["release_notes"] = "Fixed login crash"
+    (build_dir / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
+
+    data = collect_builds(ota_dir, projects_config)
+    html = render_index(data, "https://ota.example.com", None)
+    assert 'class="build-notes"' in html
+    assert "Fixed login crash" in html
+    assert "Release notes" in html

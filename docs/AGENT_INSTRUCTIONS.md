@@ -12,7 +12,7 @@ You are building an iOS app that will be installed over-the-air (Ad Hoc) on an i
    - `install_url` — for the user to install **this** build on iPhone (Safari).
    - `latest_install_url` — stable bookmark (`/latest/<project-id>`) that always redirects to the newest successful build.
    - `dashboard_url` — to browse, download, or delete past builds (bookmark once).
-6. **After modifying Python in `server/` or `tools/`, or shell helpers in `scripts/lib/`, run unit tests before finishing.** Use `./scripts/run_tests.sh` (works on Linux and macOS). Fix any failures before committing or handing off.
+6. **After modifying Python in `server/` or `tools/`, or shell helpers in `scripts/lib/`, run tests before finishing.** Use `./scripts/run_tests.sh` (works on Linux and macOS). Fix any failures before committing or handing off.
 
 ## Build command
 
@@ -38,6 +38,7 @@ jq -r '.projects | keys[]' /path/to/ios-ota-builder/config/projects.json
 ```bash
 agent_build_ota.sh --debug my-app    # fast iteration
 agent_build_ota.sh --release my-app  # force Release
+agent_build_ota.sh --notes "Fixed login crash" my-app  # manual release notes
 ```
 
 ## Workflow
@@ -58,7 +59,7 @@ Return install_url + dashboard_url to user
 
 ## Unit tests
 
-Python logic in `server/` and `tools/` has automated unit tests. Run them after any change to those directories:
+Automated tests cover Python (`server/`, `tools/`) and shell pipeline helpers. Run them after changes to those areas:
 
 ```bash
 /path/to/ios-ota-builder/scripts/run_tests.sh
@@ -66,6 +67,8 @@ Python logic in `server/` and `tools/` has automated unit tests. Run them after 
 
 - Works on **Linux** (Cursor Cloud) and **macOS** — no Xcode required.
 - Installs `pytest` from `requirements-dev.txt` on first run.
+- Runs **pytest** (59+ tests) then **shell regression scripts** in `scripts/test_*.sh` (e.g. F15 `notify_build_result`).
+- Pass arguments to run only pytest subsets: `./scripts/run_tests.sh tests/tools/test_ota_index.py`
 - Full iOS pipeline validation (`agent_build_ota.sh`) still requires your Mac with Xcode.
 
 Stable install URL for bookmarks:

@@ -167,6 +167,14 @@ When a build finishes (success or failure), macOS shows a notification by defaul
 
 Optional webhook (Slack, Discord, etc.) — set `OTA_WEBHOOK_URL` in `local.env`. The POST body includes project, status, and duration only (no OTA access token). Add `OTA_WEBHOOK_SECRET` if your endpoint expects an `X-OTA-Webhook-Secret` header.
 
+Regression test (Linux or macOS, no real build required):
+
+```bash
+./scripts/run_tests.sh
+```
+
+Or only the F15 shell tests: `./scripts/test_notify_build_result.sh`
+
 ---
 
 ## 7. Shell aliases
@@ -211,6 +219,10 @@ ota-status --json   # JSON for agents/scripts
 ```
 
 Exit codes: `0` OK · `10` disk low · `60` local server down. Override with `OTA_STATUS_FAIL_ON_SERVER` and `OTA_STATUS_FAIL_ON_DISK` in `local.env` (set to `0` to report only, never fail).
+
+### Dirty git warning (F13)
+
+Before archive starts, `agent_build_ota.sh` checks whether the app project repo (`PROJECT_PATH`) has uncommitted changes. By default it logs a `[WARN]` with the count of modified or untracked files and continues. Set `OTA_FAIL_ON_DIRTY=1` in `local.env` to abort with exit code `10` (`EC_ENVIRONMENT`) instead. The check runs before auto-increment build number (F12) and archive.
 
 ### Optional symlink
 

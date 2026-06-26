@@ -198,3 +198,46 @@ def test_serve_dynamic_ota_artifact(
     assert harness.handler._serve_dynamic_ota_artifact("/my-app/06-26-42/manifest.plist") is True
     assert sent[0][0] == 200
     assert b"live-token" in sent[0][1]
+
+
+def test_handle_restart_schedules_launch(monkeypatch: pytest.MonkeyPatch) -> None:
+    scheduled: list[Path] = []
+
+    def fake_schedule_restart(*, root: Path, delay_seconds: float = 1.0) -> None:
+        scheduled.append(root)
+
+    monkeypatch.setattr("static_server.schedule_restart", fake_schedule_restart)
+
+    harness = HandlerHarness("/api/server/restart")
+    sent: list[tuple[int, bytes]] = []
+
+    def capture_send(status: int, body: bytes, content_type: str) -> None:
+        sent.append((status, body))
+
+    harness.handler._send_bytes = capture_send  # type: ignore[method-assign]
+    harness.handler._handle_restart()
+
+    assert scheduled
+    assert sent[0][0] == 202
+    payload = json.loads(sent[0][1].decode("utf-8"))
+    assert payload["restarting"] is True
+
+
+def test_handle_restart_missing_script_returns_500(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fail_schedule_restart(*, root: Path, delay_seconds: float = 1.0) -> None:
+        raise FileNotFoundError("restart script not found")
+
+    monkeypatch.setattr("static_server.schedule_restart", fail_schedule_restart)
+
+    harness = HandlerHarness("/api/server/restart")
+    sent: list[tuple[int, bytes]] = []
+
+    def capture_send(status: int, body: bytes, content_type: str) -> None:
+        sent.append((status, body))
+
+    harness.handler._send_bytes = capture_send  # type: ignore[method-assign]
+    harness.handler._handle_restart()
+
+    assert sent[0][0] == 500
+    payload = json.loads(sent[0][1].decode("utf-8"))
+    assert "restart script not found" in payload["error"]
