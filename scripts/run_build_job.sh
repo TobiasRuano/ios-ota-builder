@@ -24,7 +24,7 @@ exec >>"$LOG_FILE" 2>&1
 
 update_job() {
   local status="$1"
-  local extra_json="${2:-{}}"
+  local extra_json="${2:-}"
   python3 - "$JOB_FILE" "$status" "$extra_json" <<'PY'
 import json, sys
 from datetime import datetime, timezone
@@ -60,7 +60,7 @@ log "=== Build job $JOB_ID for $PROJECT_ID ==="
 
 load_config
 
-update_job "preparing" "{}"
+update_job "preparing"
 
 WORKSPACE_PATH=""
 if ! WORKSPACE_PATH="$("$OTA_BUILDER_ROOT/scripts/prepare_git_workspace.sh" \
@@ -96,6 +96,6 @@ if [[ $EC -eq 0 ]]; then
   exit 0
 fi
 
-update_job "failed" "$(EC=$EC python3 -c 'import json,os; print(json.dumps({"error": f"build exited with code {os.environ[\"EC\"]}"}))')"
+update_job "failed" "$(EC=$EC python3 -c 'import json,os; print(json.dumps({"error": "build exited with code " + os.environ["EC"]}))')"
 log "=== Build job $JOB_ID failed (exit $EC) ==="
 exit "$EC"
