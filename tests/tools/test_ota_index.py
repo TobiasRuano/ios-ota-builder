@@ -14,6 +14,7 @@ from ota_index import (
     _build_sort_key,
     _fallback_build_label,
     _find_ipa_file,
+    _format_dashboard_timestamp,
     _format_duration,
     _format_ipa_size,
     _is_compact_build_dir,
@@ -78,6 +79,12 @@ def test_resolve_configuration() -> None:
     assert _resolve_configuration("06-26-42", {"configuration": "Debug"}) == "Debug"
     assert _resolve_configuration("06-26-debug", None) == "Debug"
     assert _resolve_configuration("06-26-42", None) == "Release"
+
+
+def test_format_dashboard_timestamp() -> None:
+    assert _format_dashboard_timestamp("2025-06-26T12:00:00Z") == "26 Jun 2025, 12:00 UTC"
+    assert _format_dashboard_timestamp("") == "—"
+    assert _format_dashboard_timestamp("not-a-date") == "not-a-date"
 
 
 def test_format_duration() -> None:
@@ -249,6 +256,42 @@ def test_render_index_includes_logout_when_enabled() -> None:
     html = render_index(data, "https://ota.example.com", "secret", enable_logout=True)
     assert 'action="/api/logout"' in html
     assert "Sign out" in html
+    assert 'class="page-header-actions"' in html
+    assert 'class="btn-secondary"' in html
+    assert 'class="btn-primary">Sign out' not in html
+
+
+def test_render_index_formats_last_updated_timestamp() -> None:
+    data = {"generated_at": "2025-06-26T12:00:00Z", "projects": {}}
+    html = render_index(data, "https://ota.example.com", None)
+    assert "Last updated 26 Jun 2025, 12:00 UTC" in html
+    assert "Generated 2025-06-26T12:00:00Z" not in html
+    assert 'class="muted page-header-meta"' in html
+
+
+def test_render_index_includes_colgroup(ota_dir: Path, projects_config: dict) -> None:
+    write_success_build(ota_dir, "my-app", "06-26-42")
+    data = collect_builds(ota_dir, projects_config)
+    html = render_index(data, "https://ota.example.com", None)
+    assert '<col class="col-build">' in html
+    assert '<col class="col-branch">' in html
+    assert '<col class="col-actions">' in html
+
+
+def test_render_index_truncates_long_branch_with_title(
+    ota_dir: Path, projects_config: dict
+) -> None:
+    build_dir = write_success_build(ota_dir, "my-app", "06-26-42")
+    summary = json.loads((build_dir / "summary.json").read_text(encoding="utf-8"))
+    long_branch = "feature/pf-159-ui-derived-snapshots"
+    summary["branch"] = long_branch
+    (build_dir / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
+
+    data = collect_builds(ota_dir, projects_config)
+    html = render_index(data, "https://ota.example.com", None)
+    assert 'class="cell-truncate"' in html
+    assert f'title="{long_branch}"' in html
+    assert long_branch in html
 
 
 def test_render_index_omits_logout_by_default() -> None:
