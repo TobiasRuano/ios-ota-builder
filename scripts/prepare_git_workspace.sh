@@ -63,7 +63,7 @@ fetch_remote() {
   local repo_path="$1"
   local remote="$2"
   if git -C "$repo_path" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    git -C "$repo_path" fetch --prune "$remote" 2>&1 || log "Warning: git fetch $remote failed (continuing)"
+    git -C "$repo_path" fetch --prune "$remote" >&2 || log "Warning: git fetch $remote failed (continuing)"
   fi
 }
 
@@ -79,20 +79,20 @@ checkout_branch() {
   local current
   current="$(git -C "$repo_path" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
   if [[ "$current" == "$branch" ]]; then
-    git -C "$repo_path" pull --ff-only "$remote" "$branch" 2>/dev/null || true
+    git -C "$repo_path" pull --ff-only "$remote" "$branch" >&2 || true
     return 0
   fi
 
   if git -C "$repo_path" show-ref --verify --quiet "refs/heads/$branch"; then
-    git -C "$repo_path" checkout "$branch"
+    git -C "$repo_path" checkout "$branch" >&2
   elif git -C "$repo_path" show-ref --verify --quiet "refs/remotes/$remote/$branch"; then
-    git -C "$repo_path" checkout -B "$branch" "$remote/$branch"
+    git -C "$repo_path" checkout -B "$branch" "$remote/$branch" >&2
   else
     log_error "Branch not found: $branch"
     exit "$EC_ENVIRONMENT"
   fi
 
-  git -C "$repo_path" pull --ff-only "$remote" "$branch" 2>/dev/null || true
+  git -C "$repo_path" pull --ff-only "$remote" "$branch" >&2 || true
 }
 
 prepare_worktree() {
@@ -120,15 +120,15 @@ prepare_worktree() {
   if [[ -e "$wt_path/.git" || -f "$wt_path/.git" ]]; then
     log "Reusing existing worktree: $wt_path"
     if [[ -n "$branch" ]]; then
-      git -C "$wt_path" checkout "$branch" 2>/dev/null || true
-      git -C "$wt_path" pull --ff-only "$remote" "$branch" 2>/dev/null || true
+      git -C "$wt_path" checkout "$branch" >&2 || true
+      git -C "$wt_path" pull --ff-only "$remote" "$branch" >&2 || true
     fi
   else
     if [[ -n "$branch" ]]; then
       if git -C "$base_path" show-ref --verify --quiet "refs/remotes/$remote/$branch"; then
-        git -C "$base_path" worktree add -B "$branch" "$wt_path" "$remote/$branch"
+        git -C "$base_path" worktree add -B "$branch" "$wt_path" "$remote/$branch" >&2
       elif git -C "$base_path" show-ref --verify --quiet "refs/heads/$branch"; then
-        git -C "$base_path" worktree add "$wt_path" "$branch"
+        git -C "$base_path" worktree add "$wt_path" "$branch" >&2
       else
         log_error "Branch not found for worktree: $branch"
         exit "$EC_ENVIRONMENT"
@@ -136,7 +136,7 @@ prepare_worktree() {
     else
       local head_branch
       head_branch="$(git -C "$base_path" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
-      git -C "$base_path" worktree add "$wt_path" "$head_branch"
+      git -C "$base_path" worktree add "$wt_path" "$head_branch" >&2
     fi
   fi
 
@@ -164,9 +164,10 @@ main() {
   local config_file="$OTA_BUILDER_ROOT/config/projects.json"
   GIT_REMOTE="$(jq -r --arg id "$project_id" '.projects[$id].git.remote // "origin"' "$config_file")"
   WORKTREE_BASE="$(jq -r --arg id "$project_id" '.projects[$id].git.worktree_base // ""' "$config_file")"
-  mapfile -t SECRETS_SYNC < <(
-    jq -r --arg id "$project_id" '.projects[$id].git.secrets_sync[]? // empty' "$config_file"
-  )
+  SECRETS_SYNC=()
+  while IFS= read -r _secret; do
+    [[ -n "$_secret" ]] && SECRETS_SYNC+=("$_secret")
+  done < <(jq -r --arg id "$project_id" '.projects[$id].git.secrets_sync[]? // empty' "$config_file")
 
   local base_path="$PROJECT_PATH"
   local mode
@@ -182,7 +183,7 @@ main() {
     stash_checkout)
       fetch_remote "$base_path" "$GIT_REMOTE"
       if [[ "$(repo_dirty_count "$base_path")" -gt 0 ]]; then
-        git -C "$base_path" stash push -u -m "ota-build-$(date +%s)" || {
+        git -C "$base_path" stash push -u -m "ota-build-$(date +%s)" >&2 || {
           log_error "git stash failed — resolve conflicts or use worktree mode"
           exit "$EC_ENVIRONMENT"
         }
