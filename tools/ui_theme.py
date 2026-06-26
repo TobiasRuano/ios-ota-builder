@@ -211,6 +211,23 @@ def css_cards() -> str:
   font-weight: 600;
   letter-spacing: -.03em;
 }
+
+.install-qr {
+  display: none;
+  margin: 0 0 1.25rem;
+  text-align: center;
+}
+
+.install-qr svg {
+  display: block;
+  width: min(200px, 100%);
+  height: auto;
+  margin: 0 auto .5rem;
+}
+
+@media (min-width: 600px) {
+  .install-qr { display: block; }
+}
 """
 
 

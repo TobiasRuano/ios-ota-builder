@@ -13,6 +13,7 @@ from xml.etree import ElementTree as ET
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from auth_urls import with_access_token
+from qr_svg import qr_svg
 from ui_theme import base_head
 
 
@@ -44,11 +45,18 @@ def build_manifest(
     return plistlib.dumps(manifest, fmt=plistlib.FMT_XML)
 
 
-def build_install_html(*, title: str, manifest_url: str, ipa_url: str) -> str:
+def build_install_html(
+    *,
+    title: str,
+    manifest_url: str,
+    ipa_url: str,
+    install_page_url: str,
+) -> str:
     # Manifest URL must be percent-encoded inside itms-services (especially ?token=...)
     encoded_manifest = quote(manifest_url, safe="")
     install_href = f"itms-services://?action=download-manifest&url={encoded_manifest}"
     safe_title = html.escape(title)
+    qr_html = qr_svg(install_page_url)
     return f"""<!DOCTYPE html>
 <html lang="en">
 {base_head(f"{title} — Install", narrow=True)}
@@ -57,6 +65,10 @@ def build_install_html(*, title: str, manifest_url: str, ipa_url: str) -> str:
     <div class="install-card">
       <h1>{safe_title}</h1>
       <p class="muted">Open this page in Safari on your iPhone to install.</p>
+      <div class="install-qr" aria-hidden="true">
+        {qr_html}
+        <p class="muted">Scan with iPhone camera</p>
+      </div>
       <a class="btn-primary block" href="{install_href}">Install App</a>
       <p class="muted"><a class="link-accent" href="{html.escape(ipa_url)}">Download IPA</a></p>
     </div>
@@ -86,6 +98,7 @@ def main() -> int:
     token = args.access_token or None
     ipa_url = with_access_token(f"{base}/{rel}/app.ipa", token)
     manifest_url = with_access_token(f"{base}/{rel}/manifest.plist", token)
+    install_page_url = with_access_token(f"{base}/{rel}/install.html", token)
 
     manifest_bytes = build_manifest(
         title=args.display_name,
@@ -109,6 +122,7 @@ def main() -> int:
             title=args.display_name,
             manifest_url=manifest_url,
             ipa_url=ipa_url,
+            install_page_url=install_page_url,
         ),
         encoding="utf-8",
     )
