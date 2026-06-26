@@ -6,6 +6,7 @@ Detailed implementation specs for each planned improvement. See [`roadmap.md`](r
 
 ## Install experience
 
+<a id="f01"></a>
 ### F01 — Rich install page
 
 | | |
@@ -55,6 +56,7 @@ Some older builds on disk may have legacy `install.html` without the new theme. 
 
 ---
 
+<a id="f02"></a>
 ### F02 — QR code on install page
 
 | | |
@@ -95,6 +97,7 @@ Do not QR-encode raw IPA URLs for install — use the `install.html` or manifest
 
 ---
 
+<a id="f03"></a>
 ### F03 — `/latest/<project-id>` redirect
 
 | | |
@@ -142,6 +145,7 @@ Follow the same pattern as existing dynamic routes (`/`, `/builds.json`).
 
 ---
 
+<a id="f04"></a>
 ### F04 — App icon from archive
 
 | | |
@@ -186,6 +190,7 @@ Widget extensions and asset catalogs vary; start with Apps that use standard `Ap
 
 ---
 
+<a id="f05"></a>
 ### F05 — Auto release notes
 
 | | |
@@ -228,6 +233,7 @@ F23 (changelog) shares git-log logic — implement once, reuse.
 
 ## Dashboard
 
+<a id="f06"></a>
 ### F06 — Copy-to-clipboard links
 
 | | |
@@ -260,6 +266,7 @@ F03 optional (copy latest URL is more useful with stable redirect).
 
 ---
 
+<a id="f07"></a>
 ### F07 — Visual badges
 
 | | |
@@ -300,6 +307,7 @@ F20 for failure badge styling.
 
 ---
 
+<a id="f08"></a>
 ### F08 — Table metadata
 
 | | |
@@ -336,6 +344,7 @@ None.
 
 ---
 
+<a id="f09"></a>
 ### F09 — Mobile-friendly dashboard
 
 | | |
@@ -372,6 +381,7 @@ None.
 
 ---
 
+<a id="f10"></a>
 ### F10 — Commit links
 
 | | |
@@ -385,18 +395,26 @@ None.
 Commit hashes in the dashboard are plain text.
 
 **Proposed solution**  
-Add optional `repo_url` to each project in `projects.json`:
+Add optional `repo_url` and `repo_type` to each project in `projects.json`:
 
 ```json
-"repo_url": "https://github.com/user/my-app"
+"repo_url": "https://github.com/user/my-app",
+"repo_type": "github"
 ```
 
-Render commit as `<a href="{repo_url}/commit/{full_or_short_sha}">`. If `repo_url` is missing, keep plain text. Store full SHA in `summary.json` (`commit_full`) for accurate links.
+`repo_type` is `github` (default) or `gitlab`. Build commit links with provider-specific paths:
+
+| Provider | Commit URL template |
+|----------|---------------------|
+| `github` | `{repo_url}/commit/{sha}` |
+| `gitlab` | `{repo_url}/-/commit/{sha}` |
+
+If `repo_url` is missing, keep plain text. Store full SHA in `summary.json` (`commit_full`) for accurate links.
 
 **Files likely touched**
 
 - `config/projects.json.example`
-- `scripts/lib/common.sh` — `git_metadata()` also exports full SHA
+- `scripts/lib/common.sh` — `git_metadata()` also exports full SHA; helper `commit_url(repo_url, repo_type, sha)`
 - `tools/ota_index.py`
 
 **Dependencies**  
@@ -404,12 +422,14 @@ None.
 
 **Acceptance criteria**
 
-- [ ] Commits link to GitHub/GitLab when `repo_url` is set
+- [ ] Commits link correctly for `repo_type: github`
+- [ ] Commits link correctly for `repo_type: gitlab` (`/-/commit/` path)
 - [ ] Projects without `repo_url` unchanged
-- [ ] Example config documents the new field
+- [ ] Example config documents `repo_url` and `repo_type`
 
 ---
 
+<a id="f11"></a>
 ### F11 — Dark mode
 
 | | |
@@ -443,6 +463,7 @@ None.
 
 ## Pipeline
 
+<a id="f12"></a>
 ### F12 — Auto-increment build number
 
 | | |
@@ -493,6 +514,7 @@ This is the only planned feature that touches project source (build number only)
 
 ---
 
+<a id="f13"></a>
 ### F13 — Dirty git warning
 
 | | |
@@ -525,6 +547,7 @@ None.
 
 ---
 
+<a id="f14"></a>
 ### F14 — Per-project build lock
 
 | | |
@@ -560,6 +583,7 @@ Shares locking pattern with F12 counter file.
 
 ---
 
+<a id="f15"></a>
 ### F15 — Build completion notifications
 
 | | |
@@ -597,6 +621,7 @@ None.
 
 ---
 
+<a id="f16"></a>
 ### F16 — `--dry-run` preflight
 
 | | |
@@ -613,15 +638,19 @@ You only discover signing or disk issues after starting a long compile.
 `agent_build_ota.sh --dry-run <project-id>` runs:
 
 - `load_config`, `load_project`, `verify_signing.sh`
-- `check_disk_space`
+- Disk check on the `OTA_BUILDS_DIR` volume (see below)
 - `serve_check.sh` (report only)
 - Optional SPM resolve dry check
 
-Print JSON `{ "status": "ok", "checks": [...] }` and exit 0. No archive, no manifest.
+Print JSON `{ "status": "ok", "checks": [...] }` and exit 0. No archive, no manifest, no build subdirectories.
+
+**Disk check on fresh installs**  
+`check_disk_space` uses `df` on `OTA_BUILDS_DIR`. If that directory does not exist yet (before the first build), dry-run may run `mkdir -p "$OTA_BUILDS_DIR"` first — creating an empty output root is setup, not a build artifact. Alternatively, check free space on `$OTA_BUILDER_ROOT` when the directory is missing.
 
 **Files likely touched**
 
 - `agent_build_ota.sh`
+- `scripts/lib/common.sh` — optional `check_disk_space` helper that ensures parent path exists
 - `docs/AGENT_INSTRUCTIONS.md`
 
 **Dependencies**  
@@ -630,12 +659,14 @@ None.
 **Acceptance criteria**
 
 - [ ] `--dry-run` completes in under ~30s
-- [ ] No files written under `OTA-Builds/`
+- [ ] No build artifacts written (no `app.ipa`, `summary.json`, or timestamped build folders)
+- [ ] Empty `OTA-Builds/` root creation allowed for disk preflight when missing
 - [ ] Failed check exits non-zero with actionable message
 - [ ] Documented in `--help`
 
 ---
 
+<a id="f17"></a>
 ### F17 — Live build progress
 
 | | |
@@ -679,6 +710,7 @@ None.
 
 ## Server and operations
 
+<a id="f18"></a>
 ### F18 — `/health` endpoint
 
 | | |
@@ -692,13 +724,13 @@ None.
 No lightweight way to know if the OTA server process is alive without authenticating.
 
 **Proposed solution**  
-`GET /health` returns `200` + `{"ok": true, "uptime_seconds": N}` **without** token auth. All other routes remain protected.
+`GET /health` returns `200` + `{"ok": true, "uptime_seconds": N}` **without** token auth. `HEAD /health` returns `200` with an empty body (same auth bypass) so tunnel and uptime probes can use either method. All other routes remain protected.
 
 Optional: include `ota_builds_dir_writable: true`.
 
 **Files likely touched**
 
-- `server/static_server.py` — bypass auth for `/health` only in `do_GET`
+- `server/static_server.py` — bypass auth for `/health` in `do_GET` and `do_HEAD`
 - `docs/SETUP.md` — document for monitoring
 
 **Dependencies**  
@@ -706,7 +738,7 @@ None.
 
 **Acceptance criteria**
 
-- [ ] `/health` returns 200 without token
+- [ ] `/health` returns 200 without token (GET and HEAD)
 - [ ] `/` still returns 401 without token
 - [ ] Response is valid JSON
 - [ ] Works through Cloudflare tunnel
@@ -716,6 +748,7 @@ Do not expose secrets or build metadata on `/health`.
 
 ---
 
+<a id="f19"></a>
 ### F19 — Server status panel
 
 | | |
@@ -733,14 +766,15 @@ Footer or sidebar on dashboard showing:
 
 - Free disk space on `OTA_BUILDS_DIR` volume
 - Server version / uptime (from `/health` internal call or inline in index render)
-- Optional: last cloudflared check (HTTP HEAD to `OTA_BASE_URL/health`)
+- Optional: tunnel reachability probe via `GET` or `HEAD` to `OTA_BASE_URL/health` (must match F18)
 
-Compute disk stats in `ota_index.py` at render time (no background daemon).
+Compute disk stats in `ota_index.py` at render time (no background daemon). Low-disk warning uses `OTA_MIN_DISK_MB` from `config/local.env` (default **5000**, same as `check_disk_space` in `agent_build_ota.sh`).
 
 **Files likely touched**
 
 - `tools/ota_index.py`
 - `server/static_server.py` — pass env paths into renderer
+- `config/local.env.example` — document `OTA_MIN_DISK_MB`
 
 **Dependencies**  
 F18 recommended first.
@@ -753,6 +787,7 @@ F18 recommended first.
 
 ---
 
+<a id="f20"></a>
 ### F20 — Failed builds in dashboard
 
 | | |
@@ -785,6 +820,7 @@ F07 failure badge.
 
 ---
 
+<a id="f21"></a>
 ### F21 — `ota_status.sh` script
 
 | | |
@@ -822,6 +858,7 @@ None.
 
 ---
 
+<a id="f22"></a>
 ### F22 — Shell aliases
 
 | | |
@@ -861,6 +898,7 @@ F21 for `ota-status`.
 
 ---
 
+<a id="f23"></a>
 ### F23 — Changelog between builds
 
 | | |
@@ -900,6 +938,7 @@ F10 helps link individual commits.
 
 ---
 
+<a id="f24"></a>
 ### F24 — Pinned builds
 
 | | |
@@ -936,6 +975,7 @@ None.
 
 ## Future / ambitious
 
+<a id="f25"></a>
 ### F25 — Webhook build on git push
 
 | | |
@@ -974,6 +1014,7 @@ F14 (build lock), F15 (notifications).
 
 ---
 
+<a id="f26"></a>
 ### F26 — Build comparison
 
 | | |
@@ -1006,6 +1047,7 @@ F23, F10.
 
 ---
 
+<a id="f27"></a>
 ### F27 — Crash log upload portal
 
 | | |
@@ -1039,6 +1081,7 @@ F20 (build detail UX).
 
 ---
 
+<a id="f28"></a>
 ### F28 — macOS menu bar widget
 
 | | |
@@ -1075,6 +1118,10 @@ Largest scope item — consider a separate repository to keep ios-ota-builder sh
 ---
 
 ## Shared implementation notes
+
+### Cross-linking
+
+Feature sections use explicit HTML anchors (`<a id="f01"></a>`, …) so links from [`roadmap.md`](roadmap.md) work reliably in GitHub-rendered Markdown (headings with backticks, slashes, or `--flags` produce unpredictable auto-generated fragments).
 
 ### Dynamic vs static pages
 

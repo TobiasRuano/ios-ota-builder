@@ -57,34 +57,34 @@ flowchart LR
 
 | ID | Feature | Phase | Priority | Effort | Status | Spec |
 |----|---------|-------|----------|--------|--------|------|
-| F01 | Rich install page | 3 | P1 | M | Planned | [F01](roadmap-features.md#f01--rich-install-page) |
-| F02 | QR code on install page | 1 | P0 | S | Planned | [F02](roadmap-features.md#f02--qr-code-on-install-page) |
-| F03 | `/latest/<project-id>` redirect | 1 | P0 | S | Planned | [F03](roadmap-features.md#f03--latest-project-id-redirect) |
-| F04 | App icon from archive | 3 | P1 | M | Planned | [F04](roadmap-features.md#f04--app-icon-from-archive) |
-| F05 | Auto release notes | 3 | P2 | M | Planned | [F05](roadmap-features.md#f05--auto-release-notes) |
-| F06 | Copy-to-clipboard links | 1 | P0 | S | Planned | [F06](roadmap-features.md#f06--copy-to-clipboard-links) |
-| F07 | Visual badges (Debug/Release, latest) | 1 | P0 | S | Planned | [F07](roadmap-features.md#f07--visual-badges) |
-| F08 | Table metadata (size, duration, config) | 2 | P1 | S | Planned | [F08](roadmap-features.md#f08--table-metadata) |
-| F09 | Mobile-friendly dashboard layout | 2 | P2 | M | Planned | [F09](roadmap-features.md#f09--mobile-friendly-dashboard) |
-| F10 | Commit links via `repo_url` | 2 | P2 | S | Planned | [F10](roadmap-features.md#f10--commit-links) |
-| F11 | Dark mode | 2 | P3 | S | Planned | [F11](roadmap-features.md#f11--dark-mode) |
-| F12 | Auto-increment build number | 1 | P0 | M | Planned | [F12](roadmap-features.md#f12--auto-increment-build-number) |
-| F13 | Dirty git warning | 4 | P2 | S | Planned | [F13](roadmap-features.md#f13--dirty-git-warning) |
-| F14 | Per-project build lock | 4 | P2 | S | Planned | [F14](roadmap-features.md#f14--per-project-build-lock) |
-| F15 | Build completion notifications | 1 | P1 | S | Planned | [F15](roadmap-features.md#f15--build-completion-notifications) |
-| F16 | `--dry-run` preflight | 4 | P2 | S | Planned | [F16](roadmap-features.md#f16--dry-run-preflight) |
-| F17 | Live build progress | 4 | P2 | M | Planned | [F17](roadmap-features.md#f17--live-build-progress) |
-| F18 | `/health` endpoint | 5 | P2 | S | Planned | [F18](roadmap-features.md#f18--health-endpoint) |
-| F19 | Server status panel | 5 | P2 | M | Planned | [F19](roadmap-features.md#f19--server-status-panel) |
-| F20 | Failed builds in dashboard | 5 | P2 | M | Planned | [F20](roadmap-features.md#f20--failed-builds-in-dashboard) |
-| F21 | `ota_status.sh` script | 5 | P2 | S | Planned | [F21](roadmap-features.md#f21--ota_statussh-script) |
-| F22 | Shell aliases documentation | 5 | P3 | S | Planned | [F22](roadmap-features.md#f22--shell-aliases) |
-| F23 | Changelog between builds | 4 | P2 | M | Planned | [F23](roadmap-features.md#f23--changelog-between-builds) |
-| F24 | Pinned builds (retention exempt) | 5 | P2 | M | Planned | [F24](roadmap-features.md#f24--pinned-builds) |
-| F25 | Webhook build on git push | 5 | P3 | L | Planned | [F25](roadmap-features.md#f25--webhook-build-on-git-push) |
-| F26 | Side-by-side build comparison | 5 | P3 | L | Planned | [F26](roadmap-features.md#f26--build-comparison) |
-| F27 | Crash log upload portal | 5 | P3 | L | Planned | [F27](roadmap-features.md#f27--crash-log-upload-portal) |
-| F28 | macOS menu bar widget | 5 | P3 | L | Planned | [F28](roadmap-features.md#f28--macos-menu-bar-widget) |
+| F01 | Rich install page | 3 | P1 | M | Planned | [F01](roadmap-features.md#f01) |
+| F02 | QR code on install page | 1 | P0 | S | Planned | [F02](roadmap-features.md#f02) |
+| F03 | `/latest/<project-id>` redirect | 1 | P0 | S | Planned | [F03](roadmap-features.md#f03) |
+| F04 | App icon from archive | 3 | P1 | M | Planned | [F04](roadmap-features.md#f04) |
+| F05 | Auto release notes | 3 | P2 | M | Planned | [F05](roadmap-features.md#f05) |
+| F06 | Copy-to-clipboard links | 1 | P0 | S | Planned | [F06](roadmap-features.md#f06) |
+| F07 | Visual badges (Debug/Release, latest) | 1 | P0 | S | Planned | [F07](roadmap-features.md#f07) |
+| F08 | Table metadata (size, duration, config) | 2 | P1 | S | Planned | [F08](roadmap-features.md#f08) |
+| F09 | Mobile-friendly dashboard layout | 2 | P2 | M | Planned | [F09](roadmap-features.md#f09) |
+| F10 | Commit links via `repo_url` | 2 | P2 | S | Planned | [F10](roadmap-features.md#f10) |
+| F11 | Dark mode | 2 | P3 | S | Planned | [F11](roadmap-features.md#f11) |
+| F12 | Auto-increment build number | 1 | P0 | M | Planned | [F12](roadmap-features.md#f12) |
+| F13 | Dirty git warning | 4 | P2 | S | Planned | [F13](roadmap-features.md#f13) |
+| F14 | Per-project build lock | 4 | P2 | S | Planned | [F14](roadmap-features.md#f14) |
+| F15 | Build completion notifications | 1 | P1 | S | Planned | [F15](roadmap-features.md#f15) |
+| F16 | `--dry-run` preflight | 4 | P2 | S | Planned | [F16](roadmap-features.md#f16) |
+| F17 | Live build progress | 4 | P2 | M | Planned | [F17](roadmap-features.md#f17) |
+| F18 | `/health` endpoint | 5 | P2 | S | Planned | [F18](roadmap-features.md#f18) |
+| F19 | Server status panel | 5 | P2 | M | Planned | [F19](roadmap-features.md#f19) |
+| F20 | Failed builds in dashboard | 5 | P2 | M | Planned | [F20](roadmap-features.md#f20) |
+| F21 | `ota_status.sh` script | 5 | P2 | S | Planned | [F21](roadmap-features.md#f21) |
+| F22 | Shell aliases documentation | 5 | P3 | S | Planned | [F22](roadmap-features.md#f22) |
+| F23 | Changelog between builds | 4 | P2 | M | Planned | [F23](roadmap-features.md#f23) |
+| F24 | Pinned builds (retention exempt) | 5 | P2 | M | Planned | [F24](roadmap-features.md#f24) |
+| F25 | Webhook build on git push | 5 | P3 | L | Planned | [F25](roadmap-features.md#f25) |
+| F26 | Side-by-side build comparison | 5 | P3 | L | Planned | [F26](roadmap-features.md#f26) |
+| F27 | Crash log upload portal | 5 | P3 | L | Planned | [F27](roadmap-features.md#f27) |
+| F28 | macOS menu bar widget | 5 | P3 | L | Planned | [F28](roadmap-features.md#f28) |
 
 **Priority:** P0 = do first · P1 = high value · P2 = nice to have · P3 = future  
 **Effort:** S = small (hours) · M = medium (1–2 days) · L = large (multi-day)
