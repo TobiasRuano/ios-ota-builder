@@ -1,0 +1,6 @@
+=== archive.log ===
+Build settings from command line:
+    ARCHIVE FAILED
+
+error: No profiles for 'com.example.myapp' were found: Xcode couldn't find any iOS App Development provisioning profiles matching 'com.example.myapp'.
+error: Signing for "MyApp" requires a development team.
