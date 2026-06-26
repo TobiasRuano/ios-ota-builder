@@ -240,7 +240,7 @@ No changes to `agent_build_ota.sh` — all logic stays in the manifest generator
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P0 |
 | **Effort** | S |
 | **Phase** | 1 |
@@ -272,11 +272,11 @@ None.
 
 **Acceptance criteria**
 
-- [ ] `/latest/my-app` redirects to the newest successful build’s install page
-- [ ] Token is appended to redirect `Location` header
-- [ ] Unknown project-id returns 404
-- [ ] Project with no builds returns 404 with clear message
-- [ ] Auth still required (401 without token)
+- [x] `/latest/my-app` redirects to the newest successful build’s install page
+- [x] Token is appended to redirect `Location` header
+- [x] Unknown project-id returns 404
+- [x] Project with no builds returns 404 with clear message
+- [x] Auth still required (401 without token)
 
 **Notes**  
 Follow the same pattern as existing dynamic routes (`/`, `/builds.json`).
@@ -861,7 +861,7 @@ None.
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P2 |
 | **Effort** | S |
 | **Phase** | 5 |
@@ -884,10 +884,10 @@ None.
 
 **Acceptance criteria**
 
-- [ ] `/health` returns 200 without token (GET and HEAD)
-- [ ] `/` still returns 401 without token
-- [ ] Response is valid JSON
-- [ ] Works through Cloudflare tunnel
+- [x] `/health` returns 200 without token (GET and HEAD)
+- [x] `/` still returns 401 without token
+- [x] Response is valid JSON
+- [x] Works through Cloudflare tunnel
 
 **Notes**  
 Do not expose secrets or build metadata on `/health`.

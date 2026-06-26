@@ -21,6 +21,64 @@ def load_summary(build_dir: Path) -> dict | None:
         return None
 
 
+def _build_entry_if_valid(build_dir: Path, project_id: str) -> dict | None:
+    if not build_dir.is_dir():
+        return None
+    if not (build_dir / "app.ipa").is_file():
+        return None
+    summary = load_summary(build_dir)
+    rel = f"{project_id}/{build_dir.name}"
+    entry = {
+        "dir": build_dir.name,
+        "path": rel,
+        "project_id": project_id,
+        "has_ipa": True,
+        "has_install": (build_dir / "install.html").is_file(),
+    }
+    if summary:
+        entry.update(
+            {
+                "status": summary.get("status"),
+                "branch": summary.get("branch"),
+                "commit": summary.get("commit"),
+                "date": summary.get("date"),
+                "version": summary.get("version"),
+                "build_number": summary.get("build_number"),
+                "install_url": summary.get("install_url"),
+                "manifest_url": summary.get("manifest_url"),
+                "ipa_url": summary.get("ipa_url"),
+            }
+        )
+    return entry
+
+
+def find_latest_build(
+    ota_dir: Path,
+    project_id: str,
+    *,
+    projects_config: dict | None = None,
+) -> dict | None:
+    if projects_config is not None and project_id not in projects_config:
+        return None
+
+    project_dir = ota_dir / project_id
+    if not project_dir.is_dir():
+        return None
+
+    for build_dir in sorted(project_dir.iterdir(), reverse=True):
+        entry = _build_entry_if_valid(build_dir, project_id)
+        if entry is None:
+            continue
+        if entry.get("status") != "success":
+            continue
+        return {
+            "project_id": project_id,
+            "build_dir": entry["dir"],
+            "path": entry["path"],
+        }
+    return None
+
+
 def collect_builds(ota_dir: Path, projects_config: dict) -> dict:
     result: dict = {
         "projects": {},
@@ -32,34 +90,9 @@ def collect_builds(ota_dir: Path, projects_config: dict) -> dict:
         builds: list[dict] = []
         if project_dir.is_dir():
             for build_dir in sorted(project_dir.iterdir(), reverse=True):
-                if not build_dir.is_dir():
-                    continue
-                if not (build_dir / "app.ipa").is_file():
-                    continue
-                summary = load_summary(build_dir)
-                rel = f"{project_id}/{build_dir.name}"
-                entry = {
-                    "dir": build_dir.name,
-                    "path": rel,
-                    "project_id": project_id,
-                    "has_ipa": True,
-                    "has_install": (build_dir / "install.html").is_file(),
-                }
-                if summary:
-                    entry.update(
-                        {
-                            "status": summary.get("status"),
-                            "branch": summary.get("branch"),
-                            "commit": summary.get("commit"),
-                            "date": summary.get("date"),
-                            "version": summary.get("version"),
-                            "build_number": summary.get("build_number"),
-                            "install_url": summary.get("install_url"),
-                            "manifest_url": summary.get("manifest_url"),
-                            "ipa_url": summary.get("ipa_url"),
-                        }
-                    )
-                builds.append(entry)
+                entry = _build_entry_if_valid(build_dir, project_id)
+                if entry is not None:
+                    builds.append(entry)
 
         result["projects"][project_id] = {
             "display_name": meta.get("display_name", project_id),

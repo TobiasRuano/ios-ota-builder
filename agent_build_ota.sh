@@ -184,9 +184,10 @@ main() {
   MANIFEST_URL="$(ota_url "$BASE_URL/$PROJECT_ID/$BUILD_DIR_NAME/manifest.plist")"
   IPA_URL="$(ota_url "$BASE_URL/$PROJECT_ID/$BUILD_DIR_NAME/app.ipa")"
   DASHBOARD_URL="$(ota_url "${BASE_URL}/")"
+  LATEST_INSTALL_URL="$(ota_url "$BASE_URL/latest/$PROJECT_ID")"
 
   DURATION=$(($(date +%s) - START_EPOCH))
-  write_summary_json "success" "" "$DURATION" "$INSTALL_URL" "$MANIFEST_URL" "$IPA_URL" "$APP_VERSION" "$APP_BUILD" "$DASHBOARD_URL"
+  write_summary_json "success" "" "$DURATION" "$INSTALL_URL" "$MANIFEST_URL" "$IPA_URL" "$APP_VERSION" "$APP_BUILD" "$DASHBOARD_URL" "$LATEST_INSTALL_URL"
   BUILD_PUBLISHED=true
   export BUILD_PUBLISHED
 
@@ -198,6 +199,7 @@ main() {
   trap - EXIT
   log "=== Build succeeded in ${DURATION}s ==="
   log "Install: $INSTALL_URL"
+  log "Latest: $LATEST_INSTALL_URL"
   log "Dashboard: $DASHBOARD_URL"
   print_result_json
 }

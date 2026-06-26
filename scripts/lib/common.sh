@@ -189,6 +189,7 @@ write_summary_json() {
   local version="${7:-}"
   local build_number="${8:-}"
   local dashboard_url="${9:-}"
+  local latest_install_url="${10:-}"
 
   local summary_file="$BUILD_OUTPUT_DIR/summary.json"
   local now
@@ -206,6 +207,7 @@ write_summary_json() {
     --arg manifest_url "$manifest_url" \
     --arg ipa_url "$ipa_url" \
     --arg dashboard_url "$dashboard_url" \
+    --arg latest_install_url "$latest_install_url" \
     --arg version "$version" \
     --arg build_number "$build_number" \
     --arg stage "$stage" \
@@ -222,6 +224,7 @@ write_summary_json() {
       manifest_url: $manifest_url,
       ipa_url: $ipa_url,
       dashboard_url: (if $dashboard_url == "" then null else $dashboard_url end),
+      latest_install_url: (if $latest_install_url == "" then null else $latest_install_url end),
       version: $version,
       build_number: $build_number,
       stage: (if $stage == "" then null else $stage end),
