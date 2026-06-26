@@ -55,13 +55,13 @@ parse_args() {
 }
 
 collect_projects_json() {
-  python3 - "$OTA_BUILDER_ROOT" "$OTA_BUILDS_DIR" "${OTA_PROJECTS_JSON:-$OTA_BUILDER_ROOT/config/projects.json}" "${OTA_BASE_URL:-}" <<'PY'
+  python3 - "$OTA_BUILDER_ROOT" "$OTA_BUILDS_DIR" "${OTA_PROJECTS_JSON:-$OTA_BUILDER_ROOT/config/projects.json}" "${OTA_BASE_URL:-}" "${OTA_ACCESS_TOKEN:-}" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-root, ota_dir_s, projects_json_s, base_url = sys.argv[1:5]
+root, ota_dir_s, projects_json_s, base_url, token = sys.argv[1:6]
 base_url = base_url.rstrip("/")
 sys.path.insert(0, str(Path(root) / "tools"))
 from ota_index import collect_builds, load_projects_config
@@ -76,16 +76,22 @@ for project_id, meta in projects_config.items():
     path = meta.get("path", "")
     path_exists = Path(path).is_dir() if path else False
     builds = builds_data.get("projects", {}).get(project_id, {}).get("builds", [])
+    successful = [
+        b for b in builds
+        if b.get("status") == "success" and b.get("has_install")
+    ]
     latest_build = None
-    if builds:
-        b = builds[0]
+    if successful:
+        b = successful[0]
         rel = b.get("path", "")
         install_path = f"{base_url}/{rel}/install.html" if base_url and rel else None
+        install_url = f"{install_path}?token={token}" if install_path and token else None
         latest_build = {
             "version": b.get("version"),
             "build_number": b.get("build_number"),
             "date": b.get("date"),
             "install_path": install_path,
+            "install_url": install_url,
         }
     projects.append(
         {
@@ -111,6 +117,7 @@ PY
 collect_disk_json() {
   local threshold_mb avail_kb free_mb free_gb disk_ok
   threshold_mb="${OTA_STATUS_MIN_DISK_MB:-5000}"
+  mkdir -p "$OTA_BUILDS_DIR"
   avail_kb="$(df -k "$OTA_BUILDS_DIR" | awk 'NR==2 {print $4}')"
   free_mb=$((avail_kb / 1024))
   free_gb="$(awk -v mb="$free_mb" 'BEGIN { printf "%.1f", mb / 1024 }')"
@@ -130,14 +137,17 @@ check_server() {
   local port url
   port="${OTA_PORT:-8765}"
   SERVER_URL="http://127.0.0.1:${port}/"
-  set +e
-  "$SCRIPT_DIR/serve_check.sh" >/dev/null 2>&1
-  SERVER_EC=$?
-  set -e
-  SERVER_OK=false
-  if [[ "$SERVER_EC" -eq 0 ]]; then
-    SERVER_OK=true
+  url="$SERVER_URL"
+  if [[ -n "${OTA_ACCESS_TOKEN:-}" ]]; then
+    url="${SERVER_URL}?token=${OTA_ACCESS_TOKEN}"
   fi
+  set +e
+  if curl -sf --max-time 3 "$url" >/dev/null 2>&1; then
+    SERVER_OK=true
+  else
+    SERVER_OK=false
+  fi
+  set -e
 }
 
 server_json() {
@@ -178,7 +188,9 @@ print_human() {
       "  \(.id)  \(.display_name)  path: " + (if .path_exists then "OK" else "MISSING" end) +
       (if .latest_build then
         "\n    latest: \(.latest_build.version // "?") (\(.latest_build.build_number // "?"))  \(.latest_build.date // "")" +
-        (if .latest_build.install_path then "\n    install: \(.latest_build.install_path)" else "" end)
+        (if .latest_build.install_url then "\n    install: \(.latest_build.install_url)"
+         elif .latest_build.install_path then "\n    install: \(.latest_build.install_path) (use ota-install)"
+         else "" end)
       else
         "\n    latest: (none)"
       end)' <<<"$STATUS_JSON"
