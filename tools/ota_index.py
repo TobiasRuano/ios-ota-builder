@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from auth_urls import with_access_token
+from ui_theme import base_head
 
 
 def load_summary(build_dir: Path) -> dict | None:
@@ -68,6 +69,16 @@ def collect_builds(ota_dir: Path, projects_config: dict) -> dict:
     return result
 
 
+def _status_badge(status: str | None) -> str:
+    if not status:
+        return ""
+    label = html.escape(str(status))
+    return (
+        f'<span class="status-badge">'
+        f'<span class="status-dot" aria-hidden="true"></span>{label}</span>'
+    )
+
+
 def render_index(
     data: dict,
     base_url: str,
@@ -83,45 +94,32 @@ def render_index(
 
     sections: list[str] = []
     sections.append(
-        """<!DOCTYPE html>
+        f"""<!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>iOS OTA Builds</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
-    h1 { margin-bottom: 0.25rem; }
-    .muted { color: #666; font-size: 0.9rem; }
-    .project { margin: 2rem 0; border-top: 1px solid #ddd; padding-top: 1rem; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
-    th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid #eee; vertical-align: top; }
-    a.btn { background: #007aff; color: #fff; padding: 0.35rem 0.75rem; border-radius: 6px; text-decoration: none; font-size: 0.85rem; display: inline-block; }
-    a.link { color: #007aff; }
-    button.btn-delete { background: #ff3b30; color: #fff; border: none; padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 0.85rem; cursor: pointer; }
-    form.inline { display: inline; margin: 0; }
-    .actions { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
-  </style>
-</head>
+{base_head("iOS OTA Builds")}
 <body>
-  <h1>iOS OTA Builds</h1>
-  <p class="muted">Generated """
-        + html.escape(data.get("generated_at", ""))
-        + "</p>"
+  <main class="page">
+    <header class="page-header">
+      <p class="kicker">Builds</p>
+      <h1>iOS OTA Builds</h1>
+      <p class="muted">Generated {html.escape(data.get("generated_at", ""))}</p>
+    </header>
+"""
     )
 
     delete_action = u("/api/builds/delete") if enable_delete and token else ""
 
     for project_id, project in data.get("projects", {}).items():
         display = html.escape(project.get("display_name", project_id))
-        sections.append(f'<section class="project"><h2>{display}</h2>')
+        sections.append(f'<section class="project-card"><h2>{display}</h2>')
         builds = project.get("builds", [])
         if not builds:
-            sections.append("<p class='muted'>No builds yet.</p></section>")
+            sections.append('<p class="empty-state">No builds yet.</p></section>')
             continue
 
         sections.append(
-            "<table><thead><tr><th>Build</th><th>Branch</th><th>Commit</th>"
+            '<div class="table-wrap"><table class="builds-table">'
+            "<thead><tr><th>Build</th><th>Branch</th><th>Commit</th>"
             "<th>Version</th><th>Actions</th></tr></thead><tbody>"
         )
         for b in builds:
@@ -129,35 +127,40 @@ def render_index(
             ipa = u(b.get("ipa_url") or f"{base}/{b['path']}/app.ipa")
             archive_log = u(f"{base}/{b['path']}/archive.log")
             build_name = html.escape(b.get("dir", ""))
+            status_html = _status_badge(b.get("status"))
             confirm_msg = "Delete this build permanently?"
 
             actions = '<div class="actions">'
             if b.get("has_install") or b.get("has_ipa"):
-                actions += f'<a class="btn" href="{html.escape(install)}">Install</a>'
-            actions += f' <a class="link" href="{html.escape(ipa)}">IPA</a>'
-            actions += f' <a class="link" href="{html.escape(archive_log)}">Log</a>'
+                actions += f'<a class="btn-primary" href="{html.escape(install)}">Install</a>'
+            actions += f'<a class="link-accent" href="{html.escape(ipa)}">IPA</a>'
+            actions += f'<a class="link-accent" href="{html.escape(archive_log)}">Log</a>'
             if delete_action:
                 actions += (
                     f'<form class="inline" method="POST" action="{html.escape(delete_action)}"'
                     f' onsubmit="return confirm(\'{confirm_msg}\');">'
                     f'<input type="hidden" name="project_id" value="{html.escape(project_id)}">'
                     f'<input type="hidden" name="build_dir" value="{html.escape(b.get("dir", ""))}">'
-                    '<button type="submit" class="btn-delete">Delete</button></form>'
+                    '<button type="submit" class="btn-danger">Delete</button></form>'
                 )
             actions += "</div>"
 
+            build_cell = f'<div class="build-name"><span>{build_name}</span>{status_html}</div>'
+            if b.get("date"):
+                build_cell += f'<br><span class="muted">{html.escape(b.get("date") or "")}</span>'
+
             sections.append(
                 "<tr>"
-                f"<td>{build_name}<br><span class='muted'>{html.escape(b.get('date') or '')}</span></td>"
+                f"<td>{build_cell}</td>"
                 f"<td>{html.escape(b.get('branch') or '—')}</td>"
                 f"<td>{html.escape(b.get('commit') or '—')}</td>"
                 f"<td>{html.escape(str(b.get('version') or '—'))} "
                 f"({html.escape(str(b.get('build_number') or '—'))})</td>"
                 f"<td>{actions}</td></tr>"
             )
-        sections.append("</tbody></table></section>")
+        sections.append("</tbody></table></div></section>")
 
-    sections.append("</body></html>")
+    sections.append("</main></body></html>")
     return "\n".join(sections)
 
 
