@@ -725,15 +725,19 @@ def render_index(
             size_cell = html.escape(_format_ipa_size(b.get("ipa_size_bytes")))
             row_class = ' class="build-row-failed"' if is_failure else ""
 
+            version_cell = (
+                f"{html.escape(str(b.get('version') or '—'))} "
+                f"({html.escape(str(b.get('build_number') or '—'))})"
+            )
+
             sections.append(
                 f"<tr{row_class}>"
                 f"<td>{build_cell}</td>"
-                f"<td>{html.escape(b.get('branch') or '—')}</td>"
-                f"<td>{html.escape(b.get('commit') or '—')}</td>"
-                f"<td>{html.escape(str(b.get('version') or '—'))} "
-                f"({html.escape(str(b.get('build_number') or '—'))})</td>"
-                f'<td class="meta-cell">{duration_cell}</td>'
-                f'<td class="meta-cell">{size_cell}</td>'
+                f'<td data-label="Branch">{html.escape(b.get("branch") or "—")}</td>'
+                f'<td data-label="Commit">{html.escape(b.get("commit") or "—")}</td>'
+                f'<td data-label="Version">{version_cell}</td>'
+                f'<td class="meta-cell" data-label="Duration">{duration_cell}</td>'
+                f'<td class="meta-cell" data-label="Size">{size_cell}</td>'
                 f"<td>{actions}</td></tr>"
             )
         sections.append("</tbody></table></div></section>")
