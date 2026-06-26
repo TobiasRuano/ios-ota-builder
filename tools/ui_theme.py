@@ -262,6 +262,11 @@ form.inline { display: inline; margin: 0; }
   box-shadow: 0 8px 24px rgba(15, 20, 25, .12);
 }
 
+.action-dropdown-menu.is-open {
+  position: fixed;
+  z-index: 1000;
+}
+
 .action-menu-item {
   display: block;
   width: 100%;

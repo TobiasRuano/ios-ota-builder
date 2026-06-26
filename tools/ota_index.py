@@ -50,13 +50,49 @@ document.addEventListener("click", function (e) {
 
 _DROPDOWN_SCRIPT = """<script>
 (function () {
+  var GAP = 6;
+
+  function resetMenu(menu) {
+    menu.hidden = true;
+    menu.classList.remove("is-open", "action-dropdown-menu-up");
+    menu.style.position = "";
+    menu.style.top = "";
+    menu.style.bottom = "";
+    menu.style.right = "";
+    menu.style.left = "";
+    menu.style.minWidth = "";
+  }
+
   function closeAllMenus() {
-    document.querySelectorAll(".action-dropdown-menu").forEach(function (menu) {
-      menu.hidden = true;
-    });
+    document.querySelectorAll(".action-dropdown-menu").forEach(resetMenu);
     document.querySelectorAll(".action-dropdown-trigger").forEach(function (trigger) {
       trigger.setAttribute("aria-expanded", "false");
     });
+  }
+
+  function positionMenu(trigger, menu) {
+    menu.classList.remove("action-dropdown-menu-up");
+    menu.style.position = "fixed";
+    menu.style.left = "";
+    menu.style.top = "";
+    menu.style.bottom = "";
+
+    var rect = trigger.getBoundingClientRect();
+    menu.style.right = (window.innerWidth - rect.right) + "px";
+    menu.style.minWidth = Math.max(rect.width, 184) + "px";
+    menu.hidden = false;
+    menu.classList.add("is-open");
+
+    var menuHeight = menu.offsetHeight;
+    var spaceBelow = window.innerHeight - rect.bottom - GAP;
+    var spaceAbove = rect.top - GAP;
+
+    if (spaceBelow >= menuHeight || spaceBelow >= spaceAbove) {
+      menu.style.top = (rect.bottom + GAP) + "px";
+    } else {
+      menu.classList.add("action-dropdown-menu-up");
+      menu.style.bottom = (window.innerHeight - rect.top + GAP) + "px";
+    }
   }
 
   document.addEventListener("click", function (e) {
@@ -68,7 +104,7 @@ _DROPDOWN_SCRIPT = """<script>
       var isOpen = !menu.hidden;
       closeAllMenus();
       if (!isOpen) {
-        menu.hidden = false;
+        positionMenu(trigger, menu);
         trigger.setAttribute("aria-expanded", "true");
       }
       return;
@@ -89,6 +125,9 @@ _DROPDOWN_SCRIPT = """<script>
       closeAllMenus();
     }
   });
+
+  window.addEventListener("resize", closeAllMenus);
+  document.addEventListener("scroll", closeAllMenus, true);
 })();
 </script>"""
 
@@ -254,9 +293,10 @@ def _copy_button(
     menu_item: bool = False,
 ) -> str:
     classes = "action-menu-item btn-copy" if menu_item else "btn-copy"
+    role_attr = 'role="menuitem" ' if menu_item else ""
     return (
         f'<button type="button" class="{classes}" '
-        f'{"role=\"menuitem\" " if menu_item else ""}'
+        f'{role_attr}'
         f'data-copy-url="{html.escape(url, quote=True)}" '
         f'data-copy-label="{html.escape(label)}" '
         f'data-copy-aria="{html.escape(aria_label)}" '
