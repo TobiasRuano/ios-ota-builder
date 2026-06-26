@@ -72,7 +72,7 @@ flowchart LR
 | F11 | Dark mode | 2 | P3 | S | Done | [F11](roadmap-features.md#f11) |
 | F12 | Auto-increment build number | 1 | P0 | M | Done | [F12](roadmap-features.md#f12) |
 | F13 | Dirty git warning | 4 | P2 | S | Done | [F13](roadmap-features.md#f13) |
-| F14 | Per-project build lock | 4 | P2 | S | Planned | [F14](roadmap-features.md#f14) |
+| F14 | Per-project build lock | 4 | P2 | S | Done | [F14](roadmap-features.md#f14) |
 | F15 | Build completion notifications | 1 | P1 | S | Done | [F15](roadmap-features.md#f15) |
 | F16 | `--dry-run` preflight | 4 | P2 | S | Planned | [F16](roadmap-features.md#f16) |
 | F17 | Live build progress | 4 | P2 | M | Planned | [F17](roadmap-features.md#f17) |

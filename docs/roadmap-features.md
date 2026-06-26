@@ -696,7 +696,7 @@ None.
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P2 |
 | **Effort** | S |
 | **Phase** | 4 |
@@ -721,9 +721,9 @@ Shares locking pattern with F12 counter file.
 
 **Acceptance criteria**
 
-- [ ] Parallel builds for **different** project-ids proceed normally
-- [ ] Second build for **same** project-id fails (or waits) with clear message
-- [ ] Lock released on success and failure (trap handler)
+- [x] Parallel builds for **different** project-ids proceed normally
+- [x] Second build for **same** project-id fails (or waits) with clear message
+- [x] Lock released on success and failure (trap handler)
 
 ---
 

@@ -79,6 +79,7 @@ parse_args() {
 
 on_exit() {
   local ec=$?
+  release_build_lock
   if [[ -z "${OTA_BUILD_NUMBER:-}" && -n "${BUILD_OUTPUT_DIR:-}" && -f "$BUILD_OUTPUT_DIR/.ota_build_number" ]]; then
     OTA_BUILD_NUMBER="$(<"$BUILD_OUTPUT_DIR/.ota_build_number")"
     export OTA_BUILD_NUMBER
@@ -122,6 +123,7 @@ main() {
   fi
   check_disk_space 5000
   mkdir -p "$OTA_BUILDS_DIR"
+  acquire_build_lock
 
   log "=== OTA Build: $DISPLAY_NAME ($PROJECT_ID) ==="
   log "Configuration: $CONFIGURATION"
