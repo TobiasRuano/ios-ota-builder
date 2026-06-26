@@ -39,6 +39,12 @@ if [[ $RESOLVE_EC -ne 0 ]]; then
 fi
 log "Dependencies resolved."
 
+if [[ "${AUTO_INCREMENT_BUILD:-false}" == "true" ]]; then
+  OTA_BUILD_NUMBER="$("$OTA_BUILDER_ROOT/scripts/resolve_build_number.sh" resolve)"
+  export OTA_BUILD_NUMBER
+  printf '%s\n' "$OTA_BUILD_NUMBER" >"$BUILD_OUTPUT_DIR/.ota_build_number"
+fi
+
 log "Archiving $SCHEME ($CONFIGURATION)..."
 if [[ -n "${OTA_BUILD_NUMBER:-}" ]]; then
   log "Using build number override: $OTA_BUILD_NUMBER"

@@ -109,7 +109,7 @@ The iPhone UDID must be registered in the Ad Hoc provisioning profile.
 
 - Private secrets: `config/local.env` (see `./scripts/setup.sh`)
 - App registry: `config/projects.json` (copy from `projects.json.example`)
-- Per-project build counters: `config/build_counters.json` (created automatically when `auto_increment_build` is enabled)
+- Per-project build counters: `config/build_counters.json` (created automatically when `auto_increment_build` is enabled). The next build number is **reserved during `resolve`** (after SPM resolution), not after publish.
 - `auto_increment_build` requires integer `CFBundleVersion` values (e.g. `42`, not `201.4`). Non-integer build numbers cause the pipeline to fail with a clear error.
 
 **Important:** `install_url` and `dashboard_url` include the access token. Treat them like passwords.

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Resolve or commit per-project build numbers for auto-increment OTA builds.
-# Usage: resolve_build_number.sh resolve|commit
-#   resolve — prints the build number to use (stdout); logs to stderr
-#   commit  — increments next_build after a successful pipeline run
+# Resolve or rollback per-project build numbers for auto-increment OTA builds.
+# Usage: resolve_build_number.sh resolve|rollback
+#   resolve  — reserves and prints the build number to use (stdout); logs to stderr
+#   rollback — restores counter after a failed build when safe (requires OTA_BUILD_NUMBER)
 
 set -euo pipefail
 
@@ -45,6 +45,14 @@ release_build_counter_lock() {
   rmdir "$BUILD_COUNTER_LOCK_DIR" 2>/dev/null || true
 }
 
+run_with_build_counter_lock() {
+  acquire_build_counter_lock
+  trap release_build_counter_lock EXIT
+  "$@"
+  trap - EXIT
+  release_build_counter_lock
+}
+
 read_next_build() {
   local project_id="$1"
   local value=""
@@ -78,7 +86,7 @@ write_next_build() {
 
 get_project_build_number() {
   local project_file="$PROJECT_PATH/$XCODEPROJ"
-  local raw_value probe_ok=0
+  local raw_value probe_ok=0 published_max
 
   set +e
   raw_value="$("$XCODEBUILD" -showBuildSettings \
@@ -90,7 +98,13 @@ get_project_build_number() {
   set -e
 
   if [[ $probe_ok -ne 0 ]] || [[ -z "${raw_value:-}" ]]; then
-    log "Warning: Could not read CURRENT_PROJECT_VERSION (SPM may need resolution); using published builds only"
+    published_max="$(get_max_published_build "$PROJECT_ID")"
+    if (( published_max == 0 )); then
+      log_error "Cannot seed build counter: project version unreadable and no prior successful OTA builds."
+      log "Ensure Swift packages resolve and CURRENT_PROJECT_VERSION is readable, or publish a first build manually."
+      exit "$EC_ENVIRONMENT"
+    fi
+    log "Warning: Could not read CURRENT_PROJECT_VERSION; using published builds only"
     echo "0"
     return 0
   fi
@@ -137,50 +151,49 @@ compute_floor_build() {
 }
 
 resolve_build_number_locked() {
-  local stored floor next_build
+  local stored floor assigned reserved
 
   floor="$(compute_floor_build)"
   stored="$(read_next_build "$PROJECT_ID")"
 
   if [[ -z "$stored" ]]; then
-    next_build="$floor"
-    write_next_build "$PROJECT_ID" "$next_build"
-    log "Auto-increment build: seeded next_build=$next_build for $PROJECT_ID"
+    assigned="$floor"
+    log "Auto-increment build: seeded assignment $assigned for $PROJECT_ID"
   elif (( 10#${stored} < 10#${floor} )); then
-    next_build="$floor"
-    write_next_build "$PROJECT_ID" "$next_build"
-    log "Auto-increment build: bumped stored counter from $stored to $next_build"
+    assigned="$floor"
+    log "Auto-increment build: bumped assignment from $stored to $assigned"
   else
-    next_build="$stored"
-    log "Auto-increment build: using CFBundleVersion override $next_build"
+    assigned="$stored"
+    log "Auto-increment build: reserved CFBundleVersion override $assigned"
   fi
 
-  printf '%s\n' "$next_build"
+  reserved=$((10#${assigned} + 1))
+  write_next_build "$PROJECT_ID" "$reserved"
+  log "Auto-increment build: next reservation will be $reserved"
+
+  printf '%s\n' "$assigned"
 }
 
-commit_build_number_locked() {
-  local current next_build
+rollback_build_number_locked() {
+  local reserved="${OTA_BUILD_NUMBER:?OTA_BUILD_NUMBER required for rollback}"
+  local counter
 
-  current="$(read_next_build "$PROJECT_ID")"
-  if [[ -z "$current" ]]; then
-    log_error "commit_build_number: no next_build stored for $PROJECT_ID"
-    exit "$EC_ENVIRONMENT"
+  counter="$(read_next_build "$PROJECT_ID")"
+  if [[ -z "$counter" ]]; then
+    return 0
   fi
-  next_build=$((10#${current} + 1))
-  write_next_build "$PROJECT_ID" "$next_build"
-  log "Auto-increment build: next build will be $next_build"
+  if (( 10#${counter} == 10#${reserved} + 1 )); then
+    write_next_build "$PROJECT_ID" "$reserved"
+    log "Auto-increment build: rolled back reservation to $reserved"
+  fi
 }
 
 cmd_resolve() {
-  acquire_build_counter_lock
-  resolve_build_number_locked
-  release_build_counter_lock
+  run_with_build_counter_lock resolve_build_number_locked
 }
 
-cmd_commit() {
-  acquire_build_counter_lock
-  commit_build_number_locked
-  release_build_counter_lock
+cmd_rollback() {
+  run_with_build_counter_lock rollback_build_number_locked
 }
 
 main() {
@@ -191,11 +204,11 @@ main() {
     resolve)
       cmd_resolve
       ;;
-    commit)
-      cmd_commit
+    rollback)
+      cmd_rollback
       ;;
     *)
-      log_error "Usage: resolve_build_number.sh resolve|commit"
+      log_error "Usage: resolve_build_number.sh resolve|rollback"
       exit "$EC_ENVIRONMENT"
       ;;
   esac

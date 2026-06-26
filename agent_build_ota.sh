@@ -74,8 +74,16 @@ parse_args() {
 
 cleanup_on_fail() {
   local ec=$?
+  if [[ -z "${OTA_BUILD_NUMBER:-}" && -n "${BUILD_OUTPUT_DIR:-}" && -f "$BUILD_OUTPUT_DIR/.ota_build_number" ]]; then
+    OTA_BUILD_NUMBER="$(<"$BUILD_OUTPUT_DIR/.ota_build_number")"
+    export OTA_BUILD_NUMBER
+  fi
   if [[ "${BUILD_PUBLISHED:-false}" == "true" ]]; then
+    print_result_json >&2 || true
     return 0
+  fi
+  if [[ "${AUTO_INCREMENT_BUILD:-false}" == "true" && -n "${OTA_BUILD_NUMBER:-}" ]]; then
+    "$OTA_BUILDER_ROOT/scripts/resolve_build_number.sh" rollback || true
   fi
   if [[ $ec -ne 0 && -n "${BUILD_OUTPUT_DIR:-}" && -d "$BUILD_OUTPUT_DIR" ]]; then
     run_diagnostics "${FAILED_STAGE:-unknown}"
@@ -118,17 +126,17 @@ main() {
   make_build_dir
   export PROJECT_ID BUILD_OUTPUT_DIR
 
-  if [[ "${AUTO_INCREMENT_BUILD:-false}" == "true" ]]; then
-    OTA_BUILD_NUMBER="$("$OTA_BUILDER_ROOT/scripts/resolve_build_number.sh" resolve)"
-    export OTA_BUILD_NUMBER
-  fi
-
   # Archive
   if ! "$OTA_BUILDER_ROOT/scripts/build_archive.sh"; then
     FAILED_STAGE="archive"
     exit "$EC_ARCHIVE"
   fi
   ARCHIVE_PATH="$BUILD_OUTPUT_DIR/work/app.xcarchive"
+
+  if [[ -f "$BUILD_OUTPUT_DIR/.ota_build_number" ]]; then
+    OTA_BUILD_NUMBER="$(<"$BUILD_OUTPUT_DIR/.ota_build_number")"
+    export OTA_BUILD_NUMBER
+  fi
 
   read_archive_version "$ARCHIVE_PATH"
   if [[ -n "${OTA_BUILD_NUMBER:-}" && "$APP_BUILD" != "$OTA_BUILD_NUMBER" ]]; then
@@ -175,10 +183,6 @@ main() {
   if ! "$OTA_BUILDER_ROOT/scripts/cleanup_ota.sh" >&2; then
     FAILED_STAGE="index"
     exit "$EC_INDEX"
-  fi
-
-  if [[ "${AUTO_INCREMENT_BUILD:-false}" == "true" ]]; then
-    "$OTA_BUILDER_ROOT/scripts/resolve_build_number.sh" commit
   fi
 
   trap - EXIT
