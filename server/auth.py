@@ -3,8 +3,16 @@
 from __future__ import annotations
 
 import os
+import sys
 from http.server import SimpleHTTPRequestHandler
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+
+_TOOLS_DIR = Path(__file__).resolve().parent.parent / "tools"
+if str(_TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(_TOOLS_DIR))
+
+from ui_theme import unauthorized_html  # noqa: E402
 
 
 def get_access_token() -> str:
@@ -28,12 +36,7 @@ def request_authorized(handler: SimpleHTTPRequestHandler, token: str) -> bool:
 
 
 def send_unauthorized(handler: SimpleHTTPRequestHandler) -> None:
-    body = (
-        "<!DOCTYPE html><html><body>"
-        "<h1>401 Unauthorized</h1>"
-        "<p>Access requires a valid token.</p>"
-        "</body></html>"
-    ).encode("utf-8")
+    body = unauthorized_html().encode("utf-8")
     handler.send_response(401)
     handler.send_header("Content-Type", "text/html; charset=utf-8")
     handler.send_header("Content-Length", str(len(body)))

@@ -13,6 +13,7 @@ from xml.etree import ElementTree as ET
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from auth_urls import with_access_token
+from ui_theme import base_head
 
 
 def build_manifest(
@@ -47,23 +48,19 @@ def build_install_html(*, title: str, manifest_url: str, ipa_url: str) -> str:
     # Manifest URL must be percent-encoded inside itms-services (especially ?token=...)
     encoded_manifest = quote(manifest_url, safe="")
     install_href = f"itms-services://?action=download-manifest&url={encoded_manifest}"
+    safe_title = html.escape(title)
     return f"""<!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{html.escape(title)} — Install</title>
-  <style>
-    body {{ font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 480px; margin: 2rem auto; padding: 0 1rem; }}
-    a.btn {{ display: block; text-align: center; background: #007aff; color: #fff; padding: 1rem; border-radius: 10px; text-decoration: none; font-size: 1.1rem; margin: 1.5rem 0; }}
-    .meta {{ color: #666; font-size: 0.9rem; }}
-  </style>
-</head>
+{base_head(f"{title} — Install", narrow=True)}
 <body>
-  <h1>{html.escape(title)}</h1>
-  <p class="meta">Open this page in Safari on your iPhone to install.</p>
-  <a class="btn" href="{install_href}">Install App</a>
-  <p class="meta"><a href="{html.escape(ipa_url)}">Download IPA</a></p>
+  <main class="page">
+    <div class="install-card">
+      <h1>{safe_title}</h1>
+      <p class="muted">Open this page in Safari on your iPhone to install.</p>
+      <a class="btn-primary block" href="{install_href}">Install App</a>
+      <p class="muted"><a class="link-accent" href="{html.escape(ipa_url)}">Download IPA</a></p>
+    </div>
+  </main>
 </body>
 </html>
 """
