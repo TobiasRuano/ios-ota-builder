@@ -72,6 +72,9 @@ def safe_next_path(raw: str | None) -> str:
         return "/"
     if not raw.startswith("/") or raw.startswith("//"):
         return "/"
+    path = urlparse(raw).path.rstrip("/") or "/"
+    if path == "/api/login" or path.startswith("/api/"):
+        return "/"
     return raw
 
 

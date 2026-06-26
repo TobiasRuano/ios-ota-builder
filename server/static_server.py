@@ -90,7 +90,7 @@ class OTAHandler(SimpleHTTPRequestHandler):
             return True
         if path == "/login" and method in ("GET", "HEAD"):
             return True
-        if path == "/api/login" and method == "POST":
+        if path == "/api/login" and method in ("GET", "HEAD", "POST"):
             return True
         return False
 
@@ -142,6 +142,17 @@ class OTAHandler(SimpleHTTPRequestHandler):
             return
         body = json.dumps(payload).encode("utf-8")
         self._send_bytes(200, body, "application/json; charset=utf-8")
+
+    def _serve_api_login_redirect(self) -> None:
+        if request_authorized(self, get_access_token()):
+            location = with_access_token("/", get_access_token() or None)
+            self.send_response(302)
+            self.send_header("Location", location)
+            self.end_headers()
+            return
+        self.send_response(302)
+        self.send_header("Location", "/login")
+        self.end_headers()
 
     def _serve_login(self) -> None:
         if not admin_login_enabled():
@@ -535,6 +546,8 @@ class OTAHandler(SimpleHTTPRequestHandler):
         if self._is_public_path(path, method="GET"):
             if path == "/health":
                 self._serve_health()
+            elif path == "/api/login":
+                self._serve_api_login_redirect()
             elif path == "/login":
                 self._serve_login()
             return
@@ -576,6 +589,9 @@ class OTAHandler(SimpleHTTPRequestHandler):
         if self._is_public_path(path, method="HEAD"):
             if path == "/health":
                 self._serve_health(head=True)
+            elif path == "/api/login":
+                self.send_response(302)
+                self.end_headers()
             elif path == "/login":
                 self.send_response(200)
                 self.end_headers()
