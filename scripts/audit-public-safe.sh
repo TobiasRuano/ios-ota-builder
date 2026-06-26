@@ -50,6 +50,14 @@ for f in config/local.env.example config/projects.json.example; do
   fi
 done
 
+# Spanish text in tracked prose files (docs and config examples)
+SPANISH_PATTERN='[áéíóúñüÁÉÍÓÚÑÜ¿¡]|\b(Editá|Abrí|Seguí|Anotá|Tocá|podés|rotás|necesitás|descargalos|cargá|guardala|Plantilla|Guía|Configuración|Descripción|Inicio rápido)\b'
+if git grep -iE "$SPANISH_PATTERN" -- '*.md' '*.example' 2>/dev/null; then
+  log_fail "Spanish text detected in tracked files (see above)"
+else
+  log_ok "No Spanish text in tracked docs"
+fi
+
 if [[ $FAIL -ne 0 ]]; then
   echo ""
   echo "Audit failed. Fix issues before making the repository public."
