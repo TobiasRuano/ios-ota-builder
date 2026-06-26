@@ -67,14 +67,32 @@ def _is_compact_build_dir(name: str) -> bool:
     return bool(_COMPACT_BUILD_DIR_RE.match(name))
 
 
-def _build_sort_key(entry: dict, build_dir: Path) -> float:
+def _parse_build_number(entry: dict, build_dir: Path) -> int:
+    build_number = entry.get("build_number")
+    if build_number is not None:
+        try:
+            return int(build_number)
+        except (TypeError, ValueError):
+            pass
+
+    dir_name = entry.get("dir") or build_dir.name
+    if _is_compact_build_dir(dir_name):
+        try:
+            return int(dir_name.rsplit("-", 1)[-1])
+        except ValueError:
+            pass
+    return 0
+
+
+def _build_sort_key(entry: dict, build_dir: Path) -> tuple[float, int]:
     date_str = entry.get("date")
     if date_str:
         try:
-            return datetime.fromisoformat(str(date_str).replace("Z", "+00:00")).timestamp()
+            timestamp = datetime.fromisoformat(str(date_str).replace("Z", "+00:00")).timestamp()
+            return (timestamp, _parse_build_number(entry, build_dir))
         except ValueError:
             pass
-    return build_dir.stat().st_mtime
+    return (build_dir.stat().st_mtime, _parse_build_number(entry, build_dir))
 
 
 def _resolve_configuration(build_dir_name: str, summary: dict | None) -> str | None:
@@ -169,7 +187,7 @@ def find_latest_build(
     if not project_dir.is_dir():
         return None
 
-    candidates: list[tuple[dict, float]] = []
+    candidates: list[tuple[dict, tuple[float, int]]] = []
     for build_dir in project_dir.iterdir():
         entry = _build_entry_if_valid(build_dir, project_id)
         if entry is None or entry.get("status") != "success":
@@ -198,7 +216,7 @@ def collect_builds(ota_dir: Path, projects_config: dict) -> dict:
         project_dir = ota_dir / project_id
         builds: list[dict] = []
         if project_dir.is_dir():
-            ranked: list[tuple[dict, float]] = []
+            ranked: list[tuple[dict, tuple[float, int]]] = []
             for build_dir in project_dir.iterdir():
                 entry = _build_entry_if_valid(build_dir, project_id)
                 if entry is not None:

@@ -164,6 +164,15 @@ make_build_dir() {
     dir_name="$(date '+%d-%m-%H%M%S')"
   fi
   BUILD_OUTPUT_DIR="$OTA_BUILDS_DIR/$PROJECT_ID/$dir_name"
+  if [[ -d "$BUILD_OUTPUT_DIR" ]]; then
+    rm -f "$BUILD_OUTPUT_DIR/app.ipa" \
+          "$BUILD_OUTPUT_DIR/install.html" \
+          "$BUILD_OUTPUT_DIR/manifest.plist" \
+          "$BUILD_OUTPUT_DIR/summary.json" \
+          "$BUILD_OUTPUT_DIR/diagnostics.md" \
+          "$BUILD_OUTPUT_DIR/.ota_failure_reason"
+    rm -rf "$BUILD_OUTPUT_DIR/work"
+  fi
   mkdir -p "$BUILD_OUTPUT_DIR"
   export BUILD_OUTPUT_DIR BUILD_DIR_NAME="$dir_name"
 }
