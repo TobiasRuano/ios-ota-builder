@@ -10,8 +10,11 @@ OTA_BUILDER_ROOT="$SCRIPT_DIR"
 source "$OTA_BUILDER_ROOT/scripts/lib/common.sh"
 
 START_EPOCH=$(date +%s)
+export START_EPOCH
 FAILED_STAGE=""
 FINAL_EC="$EC_SUCCESS"
+BUILD_PUBLISHED=false
+export BUILD_PUBLISHED
 
 usage() {
   cat >&2 <<EOF
@@ -44,6 +47,8 @@ parse_args() {
         shift
         ;;
       -h | --help)
+        OTA_NOTIFY_SKIP=1
+        export OTA_NOTIFY_SKIP
         usage
         exit "$EC_SUCCESS"
         ;;
@@ -72,7 +77,7 @@ parse_args() {
   export OTA_CONFIGURATION_OVERRIDE PROJECT_ID
 }
 
-cleanup_on_fail() {
+on_exit() {
   local ec=$?
   if [[ -z "${OTA_BUILD_NUMBER:-}" && -n "${BUILD_OUTPUT_DIR:-}" && -f "$BUILD_OUTPUT_DIR/.ota_build_number" ]]; then
     OTA_BUILD_NUMBER="$(<"$BUILD_OUTPUT_DIR/.ota_build_number")"
@@ -80,6 +85,7 @@ cleanup_on_fail() {
   fi
   if [[ "${BUILD_PUBLISHED:-false}" == "true" ]]; then
     print_result_json >&2 || true
+    notify_build_result "$ec" || true
     return 0
   fi
   if [[ "${AUTO_INCREMENT_BUILD:-false}" == "true" && -n "${OTA_BUILD_NUMBER:-}" ]]; then
@@ -87,11 +93,13 @@ cleanup_on_fail() {
   fi
   if [[ $ec -ne 0 && -n "${BUILD_OUTPUT_DIR:-}" && -d "$BUILD_OUTPUT_DIR" ]]; then
     run_diagnostics "${FAILED_STAGE:-unknown}"
-    write_summary_json "failure" "${FAILED_STAGE:-unknown}" "$(($(date +%s) - START_EPOCH))" "" "" "" "${APP_VERSION:-}" "${APP_BUILD:-}" "" "$CONFIGURATION" "0" || true
+    write_summary_json "failure" "${FAILED_STAGE:-unknown}" "$(($(date +%s) - START_EPOCH))" "" "" "" "${APP_VERSION:-}" "${APP_BUILD:-}" "" "" "$CONFIGURATION" "0" || true
     print_result_json >&2 || true
   fi
+  notify_build_result "$ec" || true
+  return "$ec"
 }
-trap cleanup_on_fail EXIT
+trap on_exit EXIT
 
 main() {
   parse_args "$@"
@@ -101,6 +109,9 @@ main() {
     usage
     exit "$EC_ENVIRONMENT"
   fi
+
+  OTA_BUILD_ATTEMPTED=true
+  export OTA_BUILD_ATTEMPTED
 
   load_config
   load_project "$PROJECT_ID"
@@ -184,11 +195,12 @@ main() {
   MANIFEST_URL="$(ota_url "$BASE_URL/$PROJECT_ID/$BUILD_DIR_NAME/manifest.plist")"
   IPA_URL="$(ota_url "$BASE_URL/$PROJECT_ID/$BUILD_DIR_NAME/app.ipa")"
   DASHBOARD_URL="$(ota_url "${BASE_URL}/")"
+  LATEST_INSTALL_URL="$(ota_url "$BASE_URL/latest/$PROJECT_ID")"
 
   IPA_SIZE_BYTES="$(stat -f%z "$BUILD_OUTPUT_DIR/app.ipa" 2>/dev/null || echo 0)"
 
   DURATION=$(($(date +%s) - START_EPOCH))
-  write_summary_json "success" "" "$DURATION" "$INSTALL_URL" "$MANIFEST_URL" "$IPA_URL" "$APP_VERSION" "$APP_BUILD" "$DASHBOARD_URL" "$CONFIGURATION" "$IPA_SIZE_BYTES"
+  write_summary_json "success" "" "$DURATION" "$INSTALL_URL" "$MANIFEST_URL" "$IPA_URL" "$APP_VERSION" "$APP_BUILD" "$DASHBOARD_URL" "$LATEST_INSTALL_URL" "$CONFIGURATION" "$IPA_SIZE_BYTES"
   BUILD_PUBLISHED=true
   export BUILD_PUBLISHED
 
@@ -197,9 +209,9 @@ main() {
     exit "$EC_INDEX"
   fi
 
-  trap - EXIT
   log "=== Build succeeded in ${DURATION}s ==="
   log "Install: $INSTALL_URL"
+  log "Latest: $LATEST_INSTALL_URL"
   log "Dashboard: $DASHBOARD_URL"
   print_result_json
 }

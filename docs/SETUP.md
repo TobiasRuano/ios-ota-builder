@@ -110,8 +110,16 @@ Verify:
 
 ```bash
 source config/env.sh
+curl -sf "http://127.0.0.1:${OTA_PORT:-8765}/health"              # → 200 without token
+curl -sfI "http://127.0.0.1:${OTA_PORT:-8765}/health"            # → HEAD 200
 curl -I "https://ota.yourdomain.com/"                              # → 401 without token
 curl -I "https://ota.yourdomain.com/?token=$OTA_ACCESS_TOKEN"    # → 200
+```
+
+Stable install URL (redirects to the newest successful build):
+
+```bash
+curl -sI "https://ota.yourdomain.com/latest/my-app?token=$OTA_ACCESS_TOKEN" | grep -i location
 ```
 
 ---
@@ -123,6 +131,7 @@ Variables in `config/local.env`:
 ```bash
 OTA_KEEP_BUILDS=5      # max per project
 OTA_MAX_AGE_DAYS=7     # max age
+OTA_STATUS_MIN_DISK_MB=5000   # ota-status warns/exits if free space below this (default 5000)
 ```
 
 - Automatic cleanup at the end of each build and daily at 03:00 (`ota-cleanup` LaunchAgent).
@@ -135,9 +144,58 @@ Force manual cleanup:
 ./scripts/cleanup_ota.sh
 ```
 
+### Build completion notifications
+
+When a build finishes (success or failure), macOS shows a notification by default. Disable with `OTA_NOTIFY=0` in `local.env`.
+
+Optional webhook (Slack, Discord, etc.) — set `OTA_WEBHOOK_URL` in `local.env`. The POST body includes project, status, and duration only (no OTA access token). Add `OTA_WEBHOOK_SECRET` if your endpoint expects an `X-OTA-Webhook-Secret` header.
+
 ---
 
-## 7. Optional symlink
+## 7. Shell aliases
+
+Short commands for builds, URLs, and ops status. Requires `OTA_BUILDER_ROOT` in your shell.
+
+### Quick setup (recommended)
+
+Add to `~/.zshrc` (or `~/.bashrc`):
+
+```bash
+eval "$(/path/to/ios-ota-builder/scripts/ota_shell.sh)"
+```
+
+`ota_shell.sh` auto-detects the repo path and defines:
+
+| Alias | Script | Use |
+|-------|--------|-----|
+| `ota-build` | `agent_build_ota.sh` | Run an OTA build |
+| `ota-install` | `print_install_url.sh` | Latest install URL (with token) |
+| `ota-dashboard` | `print_dashboard_url.sh` | Dashboard URL |
+| `ota-status` | `ota_status.sh` | Ops health check |
+
+Reload: `source ~/.zshrc`
+
+### Manual setup
+
+```bash
+export OTA_BUILDER_ROOT="$HOME/Developer/ios-ota-builder"   # your clone path
+
+alias ota-build='$OTA_BUILDER_ROOT/agent_build_ota.sh'
+alias ota-install='$OTA_BUILDER_ROOT/scripts/print_install_url.sh'
+alias ota-dashboard='$OTA_BUILDER_ROOT/scripts/print_dashboard_url.sh'
+alias ota-status='$OTA_BUILDER_ROOT/scripts/ota_status.sh'
+```
+
+### Ops status
+
+```bash
+ota-status          # human-readable summary
+ota-status --json   # JSON for agents/scripts
+```
+
+Exit codes: `0` OK · `10` disk low · `60` local server down. Override with `OTA_STATUS_FAIL_ON_SERVER` and `OTA_STATUS_FAIL_ON_DISK` in `local.env` (set to `0` to report only, never fail).
+
+### Optional symlink
 
 ```bash
 mkdir -p ~/bin

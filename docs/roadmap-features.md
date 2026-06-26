@@ -240,7 +240,7 @@ No changes to `agent_build_ota.sh` — all logic stays in the manifest generator
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P0 |
 | **Effort** | S |
 | **Phase** | 1 |
@@ -272,11 +272,11 @@ None.
 
 **Acceptance criteria**
 
-- [ ] `/latest/my-app` redirects to the newest successful build’s install page
-- [ ] Token is appended to redirect `Location` header
-- [ ] Unknown project-id returns 404
-- [ ] Project with no builds returns 404 with clear message
-- [ ] Auth still required (401 without token)
+- [x] `/latest/my-app` redirects to the newest successful build’s install page
+- [x] Token is appended to redirect `Location` header
+- [x] Unknown project-id returns 404
+- [x] Project with no builds returns 404 with clear message
+- [x] Auth still required (401 without token)
 
 **Notes**  
 Follow the same pattern as existing dynamic routes (`/`, `/builds.json`).
@@ -575,7 +575,7 @@ None.
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P3 |
 | **Effort** | S |
 | **Phase** | 2 |
@@ -588,17 +588,18 @@ Add `@media (prefers-color-scheme: dark)` overrides in `ui_theme.py` for CSS var
 
 **Files likely touched**
 
-- `tools/ui_theme.py` only
+- `tools/ui_theme.py` — dark tokens, hover variables, dual `theme-color` meta
+- `tools/qr_svg.py` — QR fills use `var(--surface)` / `var(--text)` for dark-mode contrast
 
 **Dependencies**  
 None.
 
 **Acceptance criteria**
 
-- [ ] Dashboard respects system dark mode on macOS and iOS
-- [ ] Install page respects system dark mode
-- [ ] Contrast remains readable (WCAG AA target for body text)
-- [ ] `prefers-reduced-motion` behavior preserved
+- [x] Dashboard respects system dark mode on macOS and iOS
+- [x] Install page respects system dark mode
+- [x] Contrast remains readable (WCAG AA target for body text)
+- [x] `prefers-reduced-motion` behavior preserved
 
 ---
 
@@ -731,7 +732,7 @@ Shares locking pattern with F12 counter file.
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P1 |
 | **Effort** | S |
 | **Phase** | 1 |
@@ -758,12 +759,12 @@ None.
 
 **Acceptance criteria**
 
-- [ ] Success shows macOS notification with app name
-- [ ] Failure shows notification with stage (archive/export/signing/etc.)
-- [ ] Failure notification fires for signing/preflight failures (before `make_build_dir`)
-- [ ] Webhook fires only when `OTA_WEBHOOK_URL` is set
-- [ ] Webhook payload never includes `?token=` or the OTA access token
-- [ ] macOS notifications never include full token in the body (truncate or omit)
+- [x] Success shows macOS notification with app name
+- [x] Failure shows notification with stage (archive/export/signing/etc.)
+- [x] Failure notification fires for signing/preflight failures (before `make_build_dir`)
+- [x] Webhook fires only when `OTA_WEBHOOK_URL` is set
+- [x] Webhook payload never includes `?token=` or the OTA access token
+- [x] macOS notifications never include full token in the body (truncate or omit)
 
 ---
 
@@ -861,7 +862,7 @@ None.
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P2 |
 | **Effort** | S |
 | **Phase** | 5 |
@@ -884,10 +885,10 @@ None.
 
 **Acceptance criteria**
 
-- [ ] `/health` returns 200 without token (GET and HEAD)
-- [ ] `/` still returns 401 without token
-- [ ] Response is valid JSON
-- [ ] Works through Cloudflare tunnel
+- [x] `/health` returns 200 without token (GET and HEAD)
+- [x] `/` still returns 401 without token
+- [x] Response is valid JSON
+- [x] Works through Cloudflare tunnel
 
 **Notes**  
 Do not expose secrets or build metadata on `/health`.
@@ -971,7 +972,7 @@ F07 failure badge.
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P2 |
 | **Effort** | S |
 | **Phase** | 5 |
@@ -1000,9 +1001,9 @@ None.
 
 **Acceptance criteria**
 
-- [ ] Human-readable default output
-- [ ] `--json` for agents
-- [ ] Exit non-zero if server down or disk critically low (configurable)
+- [x] Human-readable default output
+- [x] `--json` for agents
+- [x] Exit non-zero if server down or disk critically low (configurable)
 
 ---
 
@@ -1011,7 +1012,7 @@ None.
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P3 |
 | **Effort** | S |
 | **Phase** | 5 |
@@ -1041,8 +1042,8 @@ F21 for `ota-status`.
 
 **Acceptance criteria**
 
-- [ ] SETUP.md includes copy-paste alias block
-- [ ] Aliases work when `OTA_BUILDER_ROOT` is set in shell profile
+- [x] SETUP.md includes copy-paste alias block
+- [x] Aliases work when `OTA_BUILDER_ROOT` is set in shell profile
 
 ---
 

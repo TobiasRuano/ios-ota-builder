@@ -189,8 +189,9 @@ write_summary_json() {
   local version="${7:-}"
   local build_number="${8:-}"
   local dashboard_url="${9:-}"
-  local configuration="${10:-${CONFIGURATION:-}}"
-  local ipa_size_bytes="${11:-0}"
+  local latest_install_url="${10:-}"
+  local configuration="${11:-${CONFIGURATION:-}}"
+  local ipa_size_bytes="${12:-0}"
 
   local summary_file="$BUILD_OUTPUT_DIR/summary.json"
   local now
@@ -208,6 +209,7 @@ write_summary_json() {
     --arg manifest_url "$manifest_url" \
     --arg ipa_url "$ipa_url" \
     --arg dashboard_url "$dashboard_url" \
+    --arg latest_install_url "$latest_install_url" \
     --arg version "$version" \
     --arg build_number "$build_number" \
     --arg stage "$stage" \
@@ -226,6 +228,7 @@ write_summary_json() {
       manifest_url: $manifest_url,
       ipa_url: $ipa_url,
       dashboard_url: (if $dashboard_url == "" then null else $dashboard_url end),
+      latest_install_url: (if $latest_install_url == "" then null else $latest_install_url end),
       version: $version,
       build_number: $build_number,
       stage: (if $stage == "" then null else $stage end),
@@ -272,4 +275,106 @@ read_archive_version() {
   APP_VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$info_plist" 2>/dev/null || echo unknown)"
   APP_BUILD="$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$info_plist" 2>/dev/null || echo unknown)"
   export APP_VERSION APP_BUILD
+}
+
+format_duration_human() {
+  local total="${1:-0}"
+  local minutes seconds
+  if [[ "$total" -ge 60 ]]; then
+    minutes=$((total / 60))
+    seconds=$((total % 60))
+    if [[ "$seconds" -eq 0 ]]; then
+      printf '%dm' "$minutes"
+    else
+      printf '%dm %ds' "$minutes" "$seconds"
+    fi
+  else
+    printf '%ds' "$total"
+  fi
+}
+
+_escape_osascript() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+notify_build_result() {
+  local ec="${1:-0}"
+  local webhook_url="${OTA_WEBHOOK_URL:-}"
+
+  if [[ "${OTA_NOTIFY_SKIP:-}" == "1" || "${OTA_BUILD_ATTEMPTED:-}" != "true" ]]; then
+    return 0
+  fi
+  if [[ "${OTA_NOTIFY:-1}" == "0" && -z "$webhook_url" ]]; then
+    return 0
+  fi
+
+  local duration=0
+  if [[ -n "${START_EPOCH:-}" ]]; then
+    duration=$(($(date +%s) - START_EPOCH))
+  fi
+
+  local notify_status="failure"
+  if [[ "$ec" -eq 0 && "${BUILD_PUBLISHED:-false}" == "true" ]]; then
+    notify_status="success"
+  fi
+
+  local label="${DISPLAY_NAME:-}"
+  if [[ -z "$label" ]]; then
+    label="${PROJECT_ID:-OTA build}"
+  fi
+
+  local stage="${FAILED_STAGE:-}"
+  local install_path=""
+  if [[ "$notify_status" == "success" && -n "${PROJECT_ID:-}" && -n "${BUILD_DIR_NAME:-}" ]]; then
+    install_path="/${PROJECT_ID}/${BUILD_DIR_NAME}/install.html"
+  fi
+
+  local duration_human
+  duration_human="$(format_duration_human "$duration")"
+  local message title
+  if [[ "$notify_status" == "success" ]]; then
+    message="${label} build succeeded (${duration_human})"
+    title="OTA build succeeded"
+  else
+    if [[ -n "$stage" ]]; then
+      message="${label} build failed at ${stage} (${duration_human})"
+    else
+      message="${label} build failed (${duration_human})"
+    fi
+    title="OTA build failed"
+  fi
+
+  if [[ "${OTA_NOTIFY:-1}" != "0" ]]; then
+    local safe_message safe_title
+    safe_message="$(_escape_osascript "$message")"
+    safe_title="$(_escape_osascript "$title")"
+    osascript -e "display notification \"${safe_message}\" with title \"${safe_title}\"" 2>/dev/null || true
+  fi
+
+  if [[ -n "$webhook_url" ]]; then
+    local payload
+    payload="$(jq -n \
+      --arg status "$notify_status" \
+      --arg project "${PROJECT_ID:-}" \
+      --arg display_name "${DISPLAY_NAME:-}" \
+      --argjson duration_seconds "$duration" \
+      --arg stage "$stage" \
+      --arg install_path "$install_path" \
+      '{
+        status: $status,
+        project: (if $project == "" then null else $project end),
+        display_name: (if $display_name == "" then null else $display_name end),
+        duration_seconds: $duration_seconds
+      }
+      + (if $stage == "" then {} else {stage: $stage} end)
+      + (if $install_path == "" then {} else {install_path: $install_path} end)')"
+
+    local curl_args=(-sf --max-time 10 -X POST -H "Content-Type: application/json" -d "$payload")
+    if [[ -n "${OTA_WEBHOOK_SECRET:-}" ]]; then
+      curl_args+=(-H "X-OTA-Webhook-Secret: ${OTA_WEBHOOK_SECRET}")
+    fi
+    if ! curl "${curl_args[@]}" "$webhook_url" >/dev/null 2>&1; then
+      log "Warning: build completion webhook failed"
+    fi
+  fi
 }
