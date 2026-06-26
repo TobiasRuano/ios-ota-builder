@@ -1196,6 +1196,65 @@ def css_build_panel() -> str:
   font-weight: 500;
 }
 
+.build-preflight-results {
+  margin: .75rem 0 0;
+  padding: .65rem .75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: .82rem;
+}
+
+.build-preflight-summary {
+  margin: 0 0 .5rem;
+  font: 600 .78rem "IBM Plex Mono", monospace;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.build-preflight-results ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.build-preflight-results li {
+  margin: 0 0 .35rem;
+  line-height: 1.35;
+}
+
+.build-preflight-results li:last-child {
+  margin-bottom: 0;
+}
+
+.preflight-name {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .78rem;
+}
+
+.preflight-status {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: .72rem;
+}
+
+.preflight-meta,
+.preflight-message {
+  color: var(--muted);
+}
+
+.preflight-ok .preflight-status {
+  color: var(--success, #1a7f37);
+}
+
+.preflight-warn .preflight-status {
+  color: var(--warning, #9a6700);
+}
+
+.preflight-failed .preflight-status {
+  color: var(--danger);
+}
+
 @media (max-width: 640px) {
   .build-panel-grid {
     grid-template-columns: 1fr;

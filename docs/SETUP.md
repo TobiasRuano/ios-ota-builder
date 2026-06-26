@@ -203,6 +203,7 @@ Each project card on the dashboard includes a **New build** button in the header
 - View current git branch, commit, and dirty-file count (same rules as F13)
 - **Fetch remotes** to refresh the branch list
 - Choose **branch**, **git mode**, and **configuration**
+- **Check environment** — runs F16 preflight (`signing`, disk, server) via `POST /api/builds/preflight` without compiling; results appear inline in the panel
 - **Start build** — runs in the background on the Mac; the page polls job status and refreshes when done
 
 **Git modes** (per project, default `auto` in `projects.json`):
