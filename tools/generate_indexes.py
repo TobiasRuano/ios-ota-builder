@@ -30,7 +30,13 @@ def main() -> int:
     builds_json_path = args.ota_dir / "builds.json"
     builds_json_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
-    index_html = render_index(data, args.base_url, args.access_token or None, enable_delete=False)
+    index_html = render_index(
+        data,
+        args.base_url,
+        args.access_token or None,
+        enable_delete=False,
+        ota_dir=args.ota_dir,
+    )
     index_path = args.ota_dir / "index.html"
     index_path.write_text(index_html, encoding="utf-8")
 

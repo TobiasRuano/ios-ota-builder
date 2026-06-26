@@ -7,6 +7,8 @@ import json
 import os
 import sys
 import time
+import urllib.error
+import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -19,6 +21,7 @@ from auth import get_access_token, request_authorized, send_unauthorized  # noqa
 from build_delete import BuildDeleteError, delete_build  # noqa: E402
 from ota_index import (  # noqa: E402
     collect_builds,
+    collect_disk_stats,
     find_latest_build,
     load_projects_config,
     render_index,
@@ -126,6 +129,38 @@ class OTAHandler(SimpleHTTPRequestHandler):
         self.send_header("Location", location)
         self.end_headers()
 
+    def _min_disk_mb(self) -> int:
+        raw = os.environ.get("OTA_STATUS_MIN_DISK_MB", "5000")
+        try:
+            return max(0, int(raw))
+        except ValueError:
+            return 5000
+
+    def _probe_tunnel(self, base_url: str) -> dict:
+        health_url = f"{base_url.rstrip('/')}/health"
+        reachable = False
+        try:
+            req = urllib.request.Request(health_url, method="HEAD")
+            with urllib.request.urlopen(req, timeout=2) as resp:
+                reachable = 200 <= resp.status < 300
+        except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+            reachable = False
+        return {"reachable": reachable, "url": health_url}
+
+    def _server_status(self) -> dict:
+        ota_dir = self._ota_dir()
+        min_disk_mb = self._min_disk_mb()
+        status: dict = {
+            "disk": collect_disk_stats(ota_dir, min_disk_mb=min_disk_mb),
+            "uptime_seconds": int(time.monotonic() - SERVER_START_MONO),
+            "ota_builds_dir_writable": os.access(ota_dir, os.W_OK),
+        }
+        base_url = self._base_url()
+        probe_tunnel = os.environ.get("OTA_STATUS_PROBE_TUNNEL", "0") == "1"
+        if probe_tunnel and base_url:
+            status["tunnel"] = self._probe_tunnel(base_url)
+        return status
+
     def _serve_dynamic_index(self) -> None:
         data = self._index_data()
         token = self._effective_token()
@@ -134,6 +169,7 @@ class OTAHandler(SimpleHTTPRequestHandler):
             self._base_url(),
             token,
             enable_delete=bool(token),
+            server_status=self._server_status(),
         )
         self._send_bytes(200, html_body.encode("utf-8"), "text/html; charset=utf-8")
 
