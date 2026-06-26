@@ -731,7 +731,7 @@ Shares locking pattern with F12 counter file.
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P1 |
 | **Effort** | S |
 | **Phase** | 1 |
@@ -758,12 +758,12 @@ None.
 
 **Acceptance criteria**
 
-- [ ] Success shows macOS notification with app name
-- [ ] Failure shows notification with stage (archive/export/signing/etc.)
-- [ ] Failure notification fires for signing/preflight failures (before `make_build_dir`)
-- [ ] Webhook fires only when `OTA_WEBHOOK_URL` is set
-- [ ] Webhook payload never includes `?token=` or the OTA access token
-- [ ] macOS notifications never include full token in the body (truncate or omit)
+- [x] Success shows macOS notification with app name
+- [x] Failure shows notification with stage (archive/export/signing/etc.)
+- [x] Failure notification fires for signing/preflight failures (before `make_build_dir`)
+- [x] Webhook fires only when `OTA_WEBHOOK_URL` is set
+- [x] Webhook payload never includes `?token=` or the OTA access token
+- [x] macOS notifications never include full token in the body (truncate or omit)
 
 ---
 

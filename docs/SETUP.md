@@ -143,6 +143,12 @@ Force manual cleanup:
 ./scripts/cleanup_ota.sh
 ```
 
+### Build completion notifications
+
+When a build finishes (success or failure), macOS shows a notification by default. Disable with `OTA_NOTIFY=0` in `local.env`.
+
+Optional webhook (Slack, Discord, etc.) — set `OTA_WEBHOOK_URL` in `local.env`. The POST body includes project, status, and duration only (no OTA access token). Add `OTA_WEBHOOK_SECRET` if your endpoint expects an `X-OTA-Webhook-Secret` header.
+
 ---
 
 ## 7. Optional symlink

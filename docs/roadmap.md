@@ -73,7 +73,7 @@ flowchart LR
 | F12 | Auto-increment build number | 1 | P0 | M | Done | [F12](roadmap-features.md#f12) |
 | F13 | Dirty git warning | 4 | P2 | S | Planned | [F13](roadmap-features.md#f13) |
 | F14 | Per-project build lock | 4 | P2 | S | Planned | [F14](roadmap-features.md#f14) |
-| F15 | Build completion notifications | 1 | P1 | S | Planned | [F15](roadmap-features.md#f15) |
+| F15 | Build completion notifications | 1 | P1 | S | Done | [F15](roadmap-features.md#f15) |
 | F16 | `--dry-run` preflight | 4 | P2 | S | Planned | [F16](roadmap-features.md#f16) |
 | F17 | Live build progress | 4 | P2 | M | Planned | [F17](roadmap-features.md#f17) |
 | F18 | `/health` endpoint | 5 | P2 | S | Done | [F18](roadmap-features.md#f18) |
@@ -102,7 +102,7 @@ Start here for maximum impact with minimal risk:
 3. ~~**F03** — `/latest/<project-id>` redirect~~ ✅ Done
 4. **F06** — Copy-to-clipboard on dashboard
 5. **F07** — Debug/Release and “latest” badges
-6. **F15** — macOS notification when build finishes
+6. ~~**F15** — macOS notification when build finishes~~ ✅ Done
 7. **F01** — Full rich install page
 8. **F04** — App icon on install + dashboard
 9. **F08** — IPA size and duration in dashboard table
