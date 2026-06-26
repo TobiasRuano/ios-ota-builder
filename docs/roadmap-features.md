@@ -379,7 +379,7 @@ F23 (changelog) shares git-log logic — implement once, reuse.
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P0 |
 | **Effort** | S |
 | **Phase** | 1 |
@@ -412,7 +412,7 @@ F03 optional (copy latest URL is more useful with stable redirect).
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P0 |
 | **Effort** | S |
 | **Phase** | 1 |
@@ -453,7 +453,7 @@ F20 for failure badge styling.
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P1 |
 | **Effort** | S |
 | **Phase** | 2 |

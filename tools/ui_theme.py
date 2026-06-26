@@ -30,6 +30,14 @@ def css_reset_and_tokens() -> str:
   --status-active: #5ebc93;
   --danger: #c94a4a;
   --focus: #3568d4;
+  --badge-debug-bg: #fef3c7;
+  --badge-debug-text: #92400e;
+  --badge-release-bg: #ecfdf5;
+  --badge-release-text: #378564;
+  --badge-latest-bg: #eef2ff;
+  --badge-latest-text: #3568d4;
+  --badge-failed-bg: #fef2f2;
+  --badge-failed-text: #c94a4a;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -173,6 +181,31 @@ form.inline { display: inline; margin: 0; }
   align-items: center;
 }
 
+.btn-copy {
+  display: inline-block;
+  padding: .35rem .7rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+  font-size: .8rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-copy:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+  background: var(--surface-muted);
+}
+
+.btn-copy.copied {
+  border-color: var(--success);
+  color: var(--success);
+}
+
 @media (max-width: 720px) {
   .actions { flex-direction: column; align-items: flex-start; }
 }
@@ -189,10 +222,18 @@ def css_cards() -> str:
   overflow: hidden;
 }
 
-.project-card h2 {
-  margin: 0;
+.project-card-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
   padding: 1rem 1.25rem;
   border-bottom: 1px solid var(--border-subtle);
+}
+
+.project-card h2 {
+  margin: 0;
   font-size: 1.15rem;
   font-weight: 600;
   letter-spacing: -.02em;
@@ -271,14 +312,48 @@ table.builds-table tbody tr:hover td { background: var(--surface-muted); }
   font-weight: 500;
 }
 
+.badge-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+}
+
 .status-badge {
   display: inline-flex;
   align-items: center;
   gap: .35rem;
-  color: var(--success);
-  font: 500 .72rem "IBM Plex Mono", monospace;
+  padding: .15rem .45rem;
+  border-radius: 999px;
+  font: 500 .68rem "IBM Plex Mono", monospace;
   letter-spacing: .04em;
   text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.status-badge.status-success {
+  color: var(--success);
+  background: transparent;
+  padding-left: 0;
+}
+
+.status-badge.badge-debug {
+  color: var(--badge-debug-text);
+  background: var(--badge-debug-bg);
+}
+
+.status-badge.badge-release {
+  color: var(--badge-release-text);
+  background: var(--badge-release-bg);
+}
+
+.status-badge.badge-latest {
+  color: var(--badge-latest-text);
+  background: var(--badge-latest-bg);
+}
+
+.status-badge.badge-failed {
+  color: var(--badge-failed-text);
+  background: var(--badge-failed-bg);
 }
 
 .status-dot {
@@ -287,6 +362,12 @@ table.builds-table tbody tr:hover td { background: var(--surface-muted); }
   height: 7px;
   border-radius: 50%;
   background: var(--status-active);
+}
+
+.meta-cell {
+  white-space: nowrap;
+  font: 500 .82rem "IBM Plex Mono", monospace;
+  color: var(--muted);
 }
 """
 

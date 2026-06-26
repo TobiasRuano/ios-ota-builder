@@ -87,7 +87,7 @@ cleanup_on_fail() {
   fi
   if [[ $ec -ne 0 && -n "${BUILD_OUTPUT_DIR:-}" && -d "$BUILD_OUTPUT_DIR" ]]; then
     run_diagnostics "${FAILED_STAGE:-unknown}"
-    write_summary_json "failure" "${FAILED_STAGE:-unknown}" "$(($(date +%s) - START_EPOCH))" "" "" "" "${APP_VERSION:-}" "${APP_BUILD:-}" || true
+    write_summary_json "failure" "${FAILED_STAGE:-unknown}" "$(($(date +%s) - START_EPOCH))" "" "" "" "${APP_VERSION:-}" "${APP_BUILD:-}" "" "$CONFIGURATION" "0" || true
     print_result_json >&2 || true
   fi
 }
@@ -185,8 +185,10 @@ main() {
   IPA_URL="$(ota_url "$BASE_URL/$PROJECT_ID/$BUILD_DIR_NAME/app.ipa")"
   DASHBOARD_URL="$(ota_url "${BASE_URL}/")"
 
+  IPA_SIZE_BYTES="$(stat -f%z "$BUILD_OUTPUT_DIR/app.ipa" 2>/dev/null || echo 0)"
+
   DURATION=$(($(date +%s) - START_EPOCH))
-  write_summary_json "success" "" "$DURATION" "$INSTALL_URL" "$MANIFEST_URL" "$IPA_URL" "$APP_VERSION" "$APP_BUILD" "$DASHBOARD_URL"
+  write_summary_json "success" "" "$DURATION" "$INSTALL_URL" "$MANIFEST_URL" "$IPA_URL" "$APP_VERSION" "$APP_BUILD" "$DASHBOARD_URL" "$CONFIGURATION" "$IPA_SIZE_BYTES"
   BUILD_PUBLISHED=true
   export BUILD_PUBLISHED
 

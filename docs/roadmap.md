@@ -64,9 +64,9 @@ flowchart LR
 | F03 | `/latest/<project-id>` redirect | 1 | P0 | S | Planned | [F03](roadmap-features.md#f03) |
 | F04 | App icon from archive | 3 | P1 | M | Planned | [F04](roadmap-features.md#f04) |
 | F05 | Auto release notes | 3 | P2 | M | Planned | [F05](roadmap-features.md#f05) |
-| F06 | Copy-to-clipboard links | 1 | P0 | S | Planned | [F06](roadmap-features.md#f06) |
-| F07 | Visual badges (Debug/Release, latest) | 1 | P0 | S | Planned | [F07](roadmap-features.md#f07) |
-| F08 | Table metadata (size, duration, config) | 2 | P1 | S | Planned | [F08](roadmap-features.md#f08) |
+| F06 | Copy-to-clipboard links | 1 | P0 | S | Done | [F06](roadmap-features.md#f06) |
+| F07 | Visual badges (Debug/Release, latest) | 1 | P0 | S | Done | [F07](roadmap-features.md#f07) |
+| F08 | Table metadata (size, duration, config) | 2 | P1 | S | Done | [F08](roadmap-features.md#f08) |
 | F09 | Mobile-friendly dashboard layout | 2 | P2 | M | Planned | [F09](roadmap-features.md#f09) |
 | F10 | Commit links via `repo_url` | 2 | P2 | S | Planned | [F10](roadmap-features.md#f10) |
 | F11 | Dark mode | 2 | P3 | S | Planned | [F11](roadmap-features.md#f11) |
@@ -100,12 +100,12 @@ Start here for maximum impact with minimal risk:
 1. ~~**F12** — Auto-increment build number~~ ✅ Done
 2. ~~**F02** — QR code + basic metadata on install page~~ ✅ Done
 3. **F03** — `/latest/<project-id>` redirect
-4. **F06** — Copy-to-clipboard on dashboard
-5. **F07** — Debug/Release and “latest” badges
+4. ~~**F06** — Copy-to-clipboard on dashboard~~ ✅ Done
+5. ~~**F07** — Debug/Release and “latest” badges~~ ✅ Done
 6. **F15** — macOS notification when build finishes
 7. **F01** — Full rich install page
 8. **F04** — App icon on install + dashboard
-9. **F08** — IPA size and duration in dashboard table
+9. ~~**F08** — IPA size and duration in dashboard table~~ ✅ Done
 10. **F18** — `/health` endpoint for monitoring
 
 After that, pick from Phases 3–5 based on what annoys you most in daily use.
