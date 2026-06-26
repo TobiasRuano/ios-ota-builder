@@ -276,6 +276,7 @@ def test_render_index_includes_colgroup(ota_dir: Path, projects_config: dict) ->
     assert '<col class="col-build">' in html
     assert '<col class="col-branch">' in html
     assert '<col class="col-actions">' in html
+    assert 'class="cell-actions"' in html
 
 
 def test_render_index_truncates_long_branch_with_title(

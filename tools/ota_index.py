@@ -1376,7 +1376,7 @@ def render_index(
                 f'<td class="cell-nowrap" data-label="Version">{version_cell}</td>'
                 f'<td class="meta-cell" data-label="Duration">{duration_cell}</td>'
                 f'<td class="meta-cell" data-label="Size">{size_cell}</td>'
-                f"<td>{actions}</td></tr>"
+                f'<td class="cell-actions">{actions}</td></tr>'
             )
         sections.append("</tbody></table></div></section>")
 
