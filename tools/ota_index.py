@@ -228,13 +228,34 @@ def _format_ipa_size(bytes_: int | None) -> str:
     return f"{mb:.2f} MB"
 
 
+def _find_ipa_file(build_dir: Path) -> Path | None:
+    legacy = build_dir / "app.ipa"
+    if legacy.is_file():
+        return legacy
+    ipas = sorted(build_dir.glob("*.ipa"))
+    if len(ipas) == 1:
+        return ipas[0]
+    return None
+
+
+def _fallback_build_label(entry: dict, build_dir: Path) -> str:
+    if entry.get("build_label"):
+        return str(entry["build_label"])
+    build_number = _parse_build_number(entry, build_dir)
+    if build_number > 0:
+        return f"#{build_number}"
+    return entry.get("dir") or build_dir.name
+
+
 def _build_entry_if_valid(build_dir: Path, project_id: str) -> dict | None:
     if not build_dir.is_dir():
         return None
-    if not (build_dir / "app.ipa").is_file():
+    ipa_file = _find_ipa_file(build_dir)
+    if ipa_file is None:
         return None
     summary = load_summary(build_dir)
     rel = f"{project_id}/{build_dir.name}"
+    ipa_filename = ipa_file.name
     entry: dict = {
         "dir": build_dir.name,
         "path": rel,
@@ -242,6 +263,7 @@ def _build_entry_if_valid(build_dir: Path, project_id: str) -> dict | None:
         "has_ipa": True,
         "has_install": (build_dir / "install.html").is_file(),
         "configuration": _resolve_configuration(build_dir.name, summary),
+        "ipa_filename": ipa_filename,
     }
     if summary:
         entry.update(
@@ -259,8 +281,13 @@ def _build_entry_if_valid(build_dir: Path, project_id: str) -> dict | None:
                 "ipa_size_bytes": summary.get("ipa_size_bytes"),
             }
         )
+        if summary.get("ipa_filename"):
+            entry["ipa_filename"] = summary["ipa_filename"]
+        if summary.get("build_label"):
+            entry["build_label"] = summary["build_label"]
         if summary.get("configuration"):
             entry["configuration"] = summary["configuration"]
+    entry["build_label"] = _fallback_build_label(entry, build_dir)
     return entry
 
 
@@ -516,10 +543,12 @@ def render_index(
             "<th>Version</th><th>Duration</th><th>Size</th><th>Actions</th></tr></thead><tbody>"
         )
         for b in builds:
+            ipa_filename = b.get("ipa_filename") or "app.ipa"
             install = u(b.get("install_url") or f"{base}/{b['path']}/install.html")
-            ipa = u(b.get("ipa_url") or f"{base}/{b['path']}/app.ipa")
+            ipa = u(b.get("ipa_url") or f"{base}/{b['path']}/{ipa_filename}")
             archive_log = u(f"{base}/{b['path']}/archive.log")
-            build_name = html.escape(b.get("dir", ""))
+            label = html.escape(b.get("build_label") or b.get("dir", ""))
+            full_name = html.escape(b.get("ipa_filename") or "app.ipa")
             badges_html = _build_badges(b)
             confirm_msg = "Delete this build permanently?"
 
@@ -535,9 +564,10 @@ def render_index(
                 confirm_msg=confirm_msg,
             )
 
-            build_cell = f'<div class="build-name"><span>{build_name}</span>{badges_html}</div>'
-            if b.get("date") and not _is_compact_build_dir(b.get("dir", "")):
-                build_cell += f'<br><span class="muted">{html.escape(b.get("date") or "")}</span>'
+            build_cell = (
+                f'<div class="build-name" title="{full_name}">'
+                f'<span class="build-label">{label}</span>{badges_html}</div>'
+            )
 
             duration_cell = html.escape(_format_duration(b.get("duration_seconds")))
             size_cell = html.escape(_format_ipa_size(b.get("ipa_size_bytes")))

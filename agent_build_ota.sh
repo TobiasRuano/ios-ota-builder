@@ -169,6 +169,10 @@ main() {
     exit "$EC_ARCHIVE"
   fi
 
+  make_ipa_filename
+  make_build_label
+  export IPA_FILENAME BUILD_LABEL
+
   # Export IPA
   if ! "$OTA_BUILDER_ROOT/scripts/export_ipa.sh" "$ARCHIVE_PATH" "$BUILD_OUTPUT_DIR"; then
     FAILED_STAGE="export"
@@ -187,6 +191,7 @@ main() {
     --display-name "$DISPLAY_NAME" \
     --bundle-id "$BUNDLE_ID" \
     --bundle-version "${APP_VERSION}.${APP_BUILD}" \
+    --ipa-filename "$IPA_FILENAME" \
     --access-token "${OTA_ACCESS_TOKEN:-}" \
     >&2; then
     FAILED_STAGE="manifest"
@@ -195,11 +200,11 @@ main() {
 
   INSTALL_URL="$(ota_url "$BASE_URL/$PROJECT_ID/$BUILD_DIR_NAME/install.html")"
   MANIFEST_URL="$(ota_url "$BASE_URL/$PROJECT_ID/$BUILD_DIR_NAME/manifest.plist")"
-  IPA_URL="$(ota_url "$BASE_URL/$PROJECT_ID/$BUILD_DIR_NAME/app.ipa")"
+  IPA_URL="$(ota_url "$BASE_URL/$PROJECT_ID/$BUILD_DIR_NAME/$IPA_FILENAME")"
   DASHBOARD_URL="$(ota_url "${BASE_URL}/")"
   LATEST_INSTALL_URL="$(ota_url "$BASE_URL/latest/$PROJECT_ID")"
 
-  IPA_SIZE_BYTES="$(stat -f%z "$BUILD_OUTPUT_DIR/app.ipa" 2>/dev/null || echo 0)"
+  IPA_SIZE_BYTES="$(stat -f%z "$BUILD_OUTPUT_DIR/$IPA_FILENAME" 2>/dev/null || echo 0)"
 
   DURATION=$(($(date +%s) - START_EPOCH))
   write_summary_json "success" "" "$DURATION" "$INSTALL_URL" "$MANIFEST_URL" "$IPA_URL" "$APP_VERSION" "$APP_BUILD" "$DASHBOARD_URL" "$LATEST_INSTALL_URL" "$CONFIGURATION" "$IPA_SIZE_BYTES"

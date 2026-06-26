@@ -130,6 +130,32 @@ slugify() {
   echo "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-|-$//g' | cut -c1-40
 }
 
+sanitize_filename_part() {
+  local value="$1"
+  local max_len="${2:-30}"
+  echo "$value" | sed -E 's/[^a-zA-Z0-9._-]+/_/g; s/_+$//; s/^_+//' | cut -c1-"$max_len"
+}
+
+make_ipa_filename() {
+  local app_name branch env build_num version date_str
+  app_name="$(sanitize_filename_part "${DISPLAY_NAME:-$PROJECT_ID}" 30)"
+  version="${APP_VERSION:-unknown}"
+  build_num="${APP_BUILD:-${OTA_BUILD_NUMBER:-unknown}}"
+  env="${CONFIGURATION:-Release}"
+  branch="$(slugify "${GIT_BRANCH:-unknown}")"
+  branch="${branch:0:25}"
+  date_str="$(date '+%Y-%m-%d')"
+  IPA_FILENAME="${app_name}_${version}_${build_num}_${env}_${branch}_${date_str}.ipa"
+  export IPA_FILENAME
+}
+
+make_build_label() {
+  local build_num
+  build_num="${APP_BUILD:-${OTA_BUILD_NUMBER:-unknown}}"
+  BUILD_LABEL="#${build_num} · $(date '+%d %b')"
+  export BUILD_LABEL
+}
+
 ota_url() {
   local url="$1"
   if [[ -n "${OTA_ACCESS_TOKEN:-}" ]]; then
@@ -165,7 +191,7 @@ make_build_dir() {
   fi
   BUILD_OUTPUT_DIR="$OTA_BUILDS_DIR/$PROJECT_ID/$dir_name"
   if [[ -d "$BUILD_OUTPUT_DIR" ]]; then
-    rm -f "$BUILD_OUTPUT_DIR/app.ipa" \
+    rm -f "$BUILD_OUTPUT_DIR"/*.ipa \
           "$BUILD_OUTPUT_DIR/install.html" \
           "$BUILD_OUTPUT_DIR/manifest.plist" \
           "$BUILD_OUTPUT_DIR/summary.json" \
@@ -200,6 +226,8 @@ write_summary_json() {
   local latest_install_url="${10:-}"
   local configuration="${11:-${CONFIGURATION:-}}"
   local ipa_size_bytes="${12:-0}"
+  local ipa_filename="${13:-${IPA_FILENAME:-app.ipa}}"
+  local build_label="${14:-${BUILD_LABEL:-}}"
 
   local summary_file="$BUILD_OUTPUT_DIR/summary.json"
   local now
@@ -224,6 +252,8 @@ write_summary_json() {
     --arg build_dir "$BUILD_DIR_NAME" \
     --arg configuration "$configuration" \
     --argjson ipa_size_bytes "$ipa_size_bytes" \
+    --arg ipa_filename "$ipa_filename" \
+    --arg build_label "$build_label" \
     '{
       status: $status,
       project: $project,
@@ -242,7 +272,9 @@ write_summary_json() {
       stage: (if $stage == "" then null else $stage end),
       build_dir: $build_dir,
       configuration: (if $configuration == "" then null else $configuration end),
-      ipa_size_bytes: (if $ipa_size_bytes == 0 then null else $ipa_size_bytes end)
+      ipa_size_bytes: (if $ipa_size_bytes == 0 then null else $ipa_size_bytes end),
+      ipa_filename: (if $ipa_filename == "" then null else $ipa_filename end),
+      build_label: (if $build_label == "" then null else $build_label end)
     }' >"$summary_file"
 
   export SUMMARY_FILE="$summary_file"
