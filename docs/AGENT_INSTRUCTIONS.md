@@ -12,6 +12,7 @@ You are building an iOS app that will be installed over-the-air (Ad Hoc) on an i
    - `install_url` — for the user to install **this** build on iPhone (Safari).
    - `latest_install_url` — stable bookmark (`/latest/<project-id>`) that always redirects to the newest successful build.
    - `dashboard_url` — to browse, download, or delete past builds (bookmark once).
+6. **After modifying Python in `server/` or `tools/`, run unit tests before finishing.** Use `./scripts/run_tests.sh` (works on Linux and macOS). Fix any failures before committing or handing off.
 
 ## Build command
 
@@ -44,6 +45,8 @@ agent_build_ota.sh --release my-app  # force Release
 ```
 Modify code
     ↓
+If Python changed in server/ or tools/ → ./scripts/run_tests.sh
+    ↓
 agent_build_ota.sh <project-id>
     ↓
 Parse JSON stdout
@@ -52,6 +55,18 @@ If status == "failure" → read diagnostics.md → fix code → retry (max 3)
     ↓
 Return install_url + dashboard_url to user
 ```
+
+## Unit tests
+
+Python logic in `server/` and `tools/` has automated unit tests. Run them after any change to those directories:
+
+```bash
+/path/to/ios-ota-builder/scripts/run_tests.sh
+```
+
+- Works on **Linux** (Cursor Cloud) and **macOS** — no Xcode required.
+- Installs `pytest` from `requirements-dev.txt` on first run.
+- Full iOS pipeline validation (`agent_build_ota.sh`) still requires your Mac with Xcode.
 
 Stable install URL for bookmarks:
 
