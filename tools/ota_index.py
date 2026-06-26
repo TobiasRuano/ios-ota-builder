@@ -181,7 +181,13 @@ _RESTART_SCRIPT = """<script>
     btn.textContent = "Restarting…";
     if (panel) panel.classList.add("status-panel-restarting");
 
-    fetch(action, { method: "POST" })
+    fetch(action, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: window.__OTA_AUTH_MODE === "session" && window.__OTA_CSRF
+        ? { "X-CSRF-Token": window.__OTA_CSRF }
+        : {}
+    })
       .then(function (resp) {
         if (!resp.ok && resp.status !== 202) {
           throw new Error("restart request failed");
@@ -206,14 +212,7 @@ _RESTART_SCRIPT = """<script>
 })();
 </script>"""
 
-_BUILD_SCRIPT = """<script>
-(function () {
-  var POLL_MS = 4000;
-
-  function apiUrl(path) {
-    return path + (path.indexOf("?") >= 0 ? "&" : "?") + "token=" + encodeURIComponent(window.__OTA_TOKEN || "");
-  }
-
+_BUILD_SCRIPT_BODY = """
   function setStatus(panel, text, isWarn) {
     var el = panel.querySelector(".build-git-status");
     if (!el) return;
@@ -302,7 +301,7 @@ _BUILD_SCRIPT = """<script>
     var projectId = panel.getAttribute("data-project-id");
     var statusUrl = panel.getAttribute("data-git-status-url");
     if (!statusUrl) return;
-    fetch(apiUrl(statusUrl))
+    fetch(apiUrl(statusUrl), fetchOpts())
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (data.error) {
@@ -328,7 +327,7 @@ _BUILD_SCRIPT = """<script>
           select.dataset.loaded = "1";
           var branchesUrl = panel.getAttribute("data-git-branches-url");
           if (branchesUrl) {
-            fetch(apiUrl(branchesUrl))
+            fetch(apiUrl(branchesUrl), fetchOpts())
               .then(function (r) { return r.json(); })
               .then(function (br) { fillBranchSelect(select, br, branch); })
               .catch(function () {});
@@ -356,7 +355,7 @@ _BUILD_SCRIPT = """<script>
     if (startBtn) startBtn.disabled = true;
 
     function check() {
-      fetch(apiUrl(jobUrl))
+      fetch(apiUrl(jobUrl), fetchOpts())
         .then(function (r) { return r.json(); })
         .then(function (job) {
           if (!job || job.error) return;
@@ -385,7 +384,7 @@ _BUILD_SCRIPT = """<script>
   document.querySelectorAll(".build-panel").forEach(function (panel) {
     var statusUrl = panel.getAttribute("data-git-status-url");
     if (!statusUrl) return;
-    fetch(apiUrl(statusUrl))
+    fetch(apiUrl(statusUrl), fetchOpts())
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (data.active_job && data.active_job.id) {
@@ -415,11 +414,9 @@ _BUILD_SCRIPT = """<script>
       var panel = fetchBtn.closest(".build-panel");
       var url = panel.getAttribute("data-git-fetch-url");
       fetchBtn.disabled = true;
-      fetch(apiUrl(url), {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: "project_id=" + encodeURIComponent(panel.getAttribute("data-project-id"))
-      })
+      fetch(apiUrl(url), postFetchOptions(
+        "project_id=" + encodeURIComponent(panel.getAttribute("data-project-id"))
+      ))
         .then(function (r) { return r.json(); })
         .then(function () {
           var select = panel.querySelector(".build-branch-select");
@@ -442,11 +439,7 @@ _BUILD_SCRIPT = """<script>
       + "&git_mode=" + encodeURIComponent(gitMode)
       + "&configuration=" + encodeURIComponent(config);
     startBtn.disabled = true;
-    fetch(apiUrl(triggerUrl), {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: body
-    })
+    fetch(apiUrl(triggerUrl), postFetchOptions(body))
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (res) {
         if (!res.ok || !res.j.id) {
@@ -460,7 +453,65 @@ _BUILD_SCRIPT = """<script>
       });
   });
 })();
-</script>"""
+"""
+
+_BUILD_SCRIPT_SESSION = (
+    """<script>
+(function () {
+  var POLL_MS = 4000;
+
+  function apiUrl(path) {
+    return path;
+  }
+
+  function fetchOpts() {
+    return { credentials: "same-origin" };
+  }
+
+  function postFetchOptions(body) {
+    var opts = {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" }
+    };
+    if (body !== undefined) {
+      body += "&csrf_token=" + encodeURIComponent(window.__OTA_CSRF || "");
+      opts.body = body;
+    }
+    return opts;
+  }
+"""
+    + _BUILD_SCRIPT_BODY
+    + "</script>"
+)
+
+_BUILD_SCRIPT_TOKEN = (
+    """<script>
+(function () {
+  var POLL_MS = 4000;
+
+  function apiUrl(path) {
+    return path + (path.indexOf("?") >= 0 ? "&" : "?") + "token=" + encodeURIComponent(window.__OTA_TOKEN || "");
+  }
+
+  function fetchOpts() {
+    return {};
+  }
+
+  function postFetchOptions(body) {
+    var opts = {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" }
+    };
+    if (body !== undefined) {
+      opts.body = body;
+    }
+    return opts;
+  }
+"""
+    + _BUILD_SCRIPT_BODY
+    + "</script>"
+)
 
 _CHEVRON_SVG = (
     '<svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true" focusable="false">'
@@ -796,6 +847,12 @@ def _copy_button(
     )
 
 
+def _csrf_hidden_input(csrf_token: str | None) -> str:
+    if not csrf_token:
+        return ""
+    return f'<input type="hidden" name="csrf_token" value="{html.escape(csrf_token)}">'
+
+
 def _build_actions_menu(
     *,
     install: str,
@@ -807,6 +864,7 @@ def _build_actions_menu(
     project_id: str,
     build_dir: str,
     confirm_msg: str = "Delete this build permanently?",
+    csrf_token: str | None = None,
 ) -> str:
     can_install = has_install or has_ipa
     if can_install:
@@ -853,6 +911,7 @@ def _build_actions_menu(
             f' onsubmit="return confirm(\'{confirm_msg}\');">'
             f'<input type="hidden" name="project_id" value="{html.escape(project_id)}">'
             f'<input type="hidden" name="build_dir" value="{html.escape(build_dir)}">'
+            f"{_csrf_hidden_input(csrf_token)}"
             '<button type="submit" class="action-menu-item action-menu-item-danger" '
             'role="menuitem">Delete</button></form>'
         )
@@ -885,6 +944,7 @@ def _build_failure_actions_menu(
     project_id: str,
     build_dir: str,
     confirm_msg: str = "Delete this build permanently?",
+    csrf_token: str | None = None,
 ) -> str:
     if has_diagnostics:
         primary = (
@@ -909,6 +969,7 @@ def _build_failure_actions_menu(
             f' onsubmit="return confirm(\'{confirm_msg}\');">'
             f'<input type="hidden" name="project_id" value="{html.escape(project_id)}">'
             f'<input type="hidden" name="build_dir" value="{html.escape(build_dir)}">'
+            f"{_csrf_hidden_input(csrf_token)}"
             '<button type="submit" class="action-menu-item action-menu-item-danger" '
             'role="menuitem">Delete</button></form>'
         )
@@ -1188,6 +1249,8 @@ def render_index(
     base_url: str,
     access_token: str | None = None,
     *,
+    auth_mode: str = "token",
+    csrf_token: str | None = None,
     enable_delete: bool = True,
     enable_restart: bool = True,
     enable_logout: bool = False,
@@ -1197,10 +1260,13 @@ def render_index(
     min_disk_mb: int = 5000,
 ) -> str:
     base = base_url.rstrip("/")
-    token = access_token or ""
+    use_token_urls = auth_mode == "token" and bool(access_token)
+    dashboard_enabled = auth_mode in ("session", "token")
 
     def u(url: str) -> str:
-        return with_access_token(url, access_token or None)
+        if use_token_urls:
+            return with_access_token(url, access_token)
+        return url
 
     logout_html = ""
     if enable_logout:
@@ -1235,9 +1301,9 @@ def render_index(
 """
     )
 
-    delete_action = u("/api/builds/delete") if enable_delete and token else ""
-    restart_action = u("/api/server/restart") if enable_restart and token else ""
-    build_enabled = enable_build and bool(token)
+    delete_action = u("/api/builds/delete") if enable_delete and dashboard_enabled else ""
+    restart_action = u("/api/server/restart") if enable_restart and dashboard_enabled else ""
+    build_enabled = enable_build and dashboard_enabled
     trigger_url = u("/api/builds/trigger") if build_enabled else ""
     git_status_base = u("/api/git/status") if build_enabled else ""
     git_branches_base = u("/api/git/branches") if build_enabled else ""
@@ -1248,9 +1314,17 @@ def render_index(
         joiner = "&" if "?" in base else "?"
         return f"{base}{joiner}project={html.escape(pid, quote=True)}"
 
-    token_script = ""
-    if token:
-        token_script = f'<script>window.__OTA_TOKEN={json.dumps(token)};</script>'
+    auth_script = ""
+    if auth_mode == "token" and access_token:
+        auth_script = (
+            f'<script>window.__OTA_AUTH_MODE="token";'
+            f"window.__OTA_TOKEN={json.dumps(access_token)};</script>"
+        )
+    elif auth_mode == "session" and csrf_token:
+        auth_script = (
+            f'<script>window.__OTA_AUTH_MODE="session";'
+            f"window.__OTA_CSRF={json.dumps(csrf_token)};</script>"
+        )
 
     for project_id, project in data.get("projects", {}).items():
         display = html.escape(project.get("display_name", project_id))
@@ -1339,6 +1413,7 @@ def render_index(
                     project_id=project_id,
                     build_dir=b.get("dir", ""),
                     confirm_msg=confirm_msg,
+                    csrf_token=csrf_token,
                 )
             else:
                 actions = _build_actions_menu(
@@ -1351,6 +1426,7 @@ def render_index(
                     project_id=project_id,
                     build_dir=b.get("dir", ""),
                     confirm_msg=confirm_msg,
+                    csrf_token=csrf_token,
                 )
 
             build_cell = (
@@ -1387,8 +1463,8 @@ def render_index(
         sections.append(render_status_panel(panel_status, restart_action=restart_action))
 
     sections.append(
-        f"</main>\n{token_script}\n{_COPY_SCRIPT}\n{_DROPDOWN_SCRIPT}\n{_RESTART_SCRIPT}\n"
-        f"{_BUILD_SCRIPT if build_enabled else ''}\n</body></html>"
+        f"</main>\n{auth_script}\n{_COPY_SCRIPT}\n{_DROPDOWN_SCRIPT}\n{_RESTART_SCRIPT}\n"
+        f"{_BUILD_SCRIPT_SESSION if auth_mode == 'session' else _BUILD_SCRIPT_TOKEN if build_enabled else ''}\n</body></html>"
     )
     return "\n".join(sections)
 

@@ -8,7 +8,10 @@ from types import SimpleNamespace
 import pytest
 
 from auth import (
+    dashboard_auth_mode,
     get_access_token,
+    is_session_authenticated,
+    is_token_provided_in_request,
     request_authorized,
     safe_next_path,
     wants_html_login_redirect,
@@ -73,9 +76,42 @@ def test_request_authorized_accepts_valid_session(
 ) -> None:
     stored = hash_password("pass")
     monkeypatch.setenv("OTA_ADMIN_PASSWORD_HASH", stored)
-    session_id = create_session()
+    session_id, _csrf = create_session()
     handler = MockHandler("/", cookie=f"OTA_SESSION={session_id}")
     assert request_authorized(handler, "required-token") is True
+
+
+def test_is_session_authenticated_requires_valid_cookie(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stored = hash_password("pass")
+    monkeypatch.setenv("OTA_ADMIN_PASSWORD_HASH", stored)
+    session_id, _csrf = create_session()
+    handler = MockHandler("/", cookie=f"OTA_SESSION={session_id}")
+    assert is_session_authenticated(handler) is True
+
+
+def test_dashboard_auth_mode_prefers_session_without_token_in_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stored = hash_password("pass")
+    monkeypatch.setenv("OTA_ADMIN_PASSWORD_HASH", stored)
+    monkeypatch.setenv("OTA_ACCESS_TOKEN", "secret")
+    session_id, _csrf = create_session()
+    handler = MockHandler("/", cookie=f"OTA_SESSION={session_id}")
+    assert dashboard_auth_mode(handler) == "session"
+
+
+def test_dashboard_auth_mode_uses_token_when_provided(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stored = hash_password("pass")
+    monkeypatch.setenv("OTA_ADMIN_PASSWORD_HASH", stored)
+    monkeypatch.setenv("OTA_ACCESS_TOKEN", "secret")
+    session_id, _csrf = create_session()
+    handler = MockHandler("/?token=secret", cookie=f"OTA_SESSION={session_id}")
+    assert dashboard_auth_mode(handler) == "token"
+    assert is_token_provided_in_request(handler, "secret") is True
 
 
 def test_safe_next_path_blocks_open_redirects() -> None:

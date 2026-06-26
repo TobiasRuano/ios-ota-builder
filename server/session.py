@@ -13,7 +13,7 @@ DEFAULT_MAX_AGE = 7 * 24 * 3600
 DEFAULT_MAX_ACTIVE_SESSIONS = 32
 
 _lock = threading.Lock()
-_sessions: dict[str, float] = {}
+_sessions: dict[str, tuple[float, str]] = {}
 
 
 class SessionCapacityError(RuntimeError):
@@ -36,15 +36,16 @@ def max_active_sessions() -> int:
         return DEFAULT_MAX_ACTIVE_SESSIONS
 
 
-def create_session() -> str:
+def create_session() -> tuple[str, str]:
     session_id = secrets.token_urlsafe(32)
+    csrf_token = secrets.token_urlsafe(32)
     expires = time.time() + session_max_age()
     with _lock:
         _purge_expired_locked()
         if len(_sessions) >= max_active_sessions():
             raise SessionCapacityError("maximum active sessions reached")
-        _sessions[session_id] = expires
-    return session_id
+        _sessions[session_id] = (expires, csrf_token)
+    return session_id, csrf_token
 
 
 def validate_session(session_id: str | None) -> bool:
@@ -52,13 +53,38 @@ def validate_session(session_id: str | None) -> bool:
         return False
     now = time.time()
     with _lock:
-        expires = _sessions.get(session_id)
-        if expires is None:
+        entry = _sessions.get(session_id)
+        if entry is None:
             return False
+        expires, _csrf = entry
         if now >= expires:
             del _sessions[session_id]
             return False
         return True
+
+
+def get_csrf_token(session_id: str | None) -> str | None:
+    if not session_id:
+        return None
+    now = time.time()
+    with _lock:
+        entry = _sessions.get(session_id)
+        if entry is None:
+            return None
+        expires, csrf_token = entry
+        if now >= expires:
+            del _sessions[session_id]
+            return None
+        return csrf_token
+
+
+def validate_csrf_token(session_id: str | None, csrf_token: str | None) -> bool:
+    if not session_id or not csrf_token:
+        return False
+    stored = get_csrf_token(session_id)
+    if stored is None:
+        return False
+    return secrets.compare_digest(stored, csrf_token)
 
 
 def destroy_session(session_id: str | None) -> None:
@@ -75,7 +101,7 @@ def clear_all_sessions() -> None:
 
 def _purge_expired_locked() -> None:
     now = time.time()
-    for session_id, expires in list(_sessions.items()):
+    for session_id, (expires, _csrf) in list(_sessions.items()):
         if now >= expires:
             del _sessions[session_id]
 

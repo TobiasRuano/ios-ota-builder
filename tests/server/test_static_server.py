@@ -117,9 +117,10 @@ def test_handle_delete_invalid_build(
     )
     monkeypatch.setenv("OTA_BUILDS_DIR", str(ota_dir))
     monkeypatch.setenv("OTA_PROJECTS_JSON", str(projects_json))
+    monkeypatch.setenv("OTA_ACCESS_TOKEN", "secret")
 
     harness = HandlerHarness(
-        "/api/builds/delete",
+        "/api/builds/delete?token=secret",
         body=b"project_id=my-app&build_dir=missing",
     )
     sent: list[tuple[int, bytes]] = []
@@ -155,7 +156,7 @@ def test_handle_login_sets_session_cookie(monkeypatch: pytest.MonkeyPatch) -> No
     harness.handler._handle_login()
 
     assert any(key == "Set-Cookie" and "OTA_SESSION=" in value for key, value in headers)
-    assert any(key == "Location" and value == "/?token=secret" for key, value in headers)
+    assert any(key == "Location" and value == "/" for key, value in headers)
 
 
 def test_serve_dynamic_ota_artifact(
@@ -201,6 +202,7 @@ def test_serve_dynamic_ota_artifact(
 
 
 def test_handle_restart_schedules_launch(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OTA_ACCESS_TOKEN", "secret")
     scheduled: list[Path] = []
 
     def fake_schedule_restart(*, root: Path, delay_seconds: float = 1.0) -> None:
@@ -208,7 +210,7 @@ def test_handle_restart_schedules_launch(monkeypatch: pytest.MonkeyPatch) -> Non
 
     monkeypatch.setattr("static_server.schedule_restart", fake_schedule_restart)
 
-    harness = HandlerHarness("/api/server/restart")
+    harness = HandlerHarness("/api/server/restart?token=secret")
     sent: list[tuple[int, bytes]] = []
 
     def capture_send(status: int, body: bytes, content_type: str) -> None:
@@ -224,12 +226,13 @@ def test_handle_restart_schedules_launch(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 def test_handle_restart_missing_script_returns_500(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OTA_ACCESS_TOKEN", "secret")
     def fail_schedule_restart(*, root: Path, delay_seconds: float = 1.0) -> None:
         raise FileNotFoundError("restart script not found")
 
     monkeypatch.setattr("static_server.schedule_restart", fail_schedule_restart)
 
-    harness = HandlerHarness("/api/server/restart")
+    harness = HandlerHarness("/api/server/restart?token=secret")
     sent: list[tuple[int, bytes]] = []
 
     def capture_send(status: int, body: bytes, content_type: str) -> None:
@@ -264,6 +267,7 @@ def test_handle_build_trigger_schedules_job(
     )
     monkeypatch.setenv("OTA_BUILDS_DIR", str(ota_dir))
     monkeypatch.setenv("OTA_PROJECTS_JSON", str(projects_json))
+    monkeypatch.setenv("OTA_ACCESS_TOKEN", "secret")
 
     scheduled: list[str] = []
 
@@ -275,7 +279,7 @@ def test_handle_build_trigger_schedules_job(
     monkeypatch.setattr("static_server.schedule_job", fake_schedule_job)
 
     harness = HandlerHarness(
-        "/api/builds/trigger",
+        "/api/builds/trigger?token=secret",
         body=b"project_id=my-app&branch=main&git_mode=auto",
     )
     sent: list[tuple[int, bytes]] = []
@@ -290,3 +294,72 @@ def test_handle_build_trigger_schedules_job(
     payload = json.loads(sent[0][1].decode("utf-8"))
     assert payload["project_id"] == "my-app"
     assert scheduled
+
+
+def test_serve_dynamic_index_session_mode_omits_token(
+    ota_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stored = hash_password("pass")
+    monkeypatch.setenv("OTA_ADMIN_PASSWORD_HASH", stored)
+    monkeypatch.setenv("OTA_ACCESS_TOKEN", "secret")
+    projects_json = tmp_path / "projects.json"
+    projects_json.write_text(json.dumps({"projects": {}}), encoding="utf-8")
+    monkeypatch.setenv("OTA_BUILDS_DIR", str(ota_dir))
+    monkeypatch.setenv("OTA_PROJECTS_JSON", str(projects_json))
+
+    session_id, _csrf = __import__("session").create_session()
+    harness = HandlerHarness("/", cookie=f"OTA_SESSION={session_id}")
+    sent: list[tuple[int, bytes, str]] = []
+
+    def capture_send(status: int, body: bytes, content_type: str) -> None:
+        sent.append((status, body, content_type))
+
+    harness.handler._send_bytes = capture_send  # type: ignore[method-assign]
+    harness.handler._serve_dynamic_index()
+
+    html = sent[0][1].decode("utf-8")
+    assert sent[0][0] == 200
+    assert "?token=" not in html
+    assert "window.__OTA_TOKEN" not in html
+    assert 'window.__OTA_AUTH_MODE="session"' in html
+
+
+def test_serve_latest_redirect_session_mode_omits_token(
+    ota_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stored = hash_password("pass")
+    monkeypatch.setenv("OTA_ADMIN_PASSWORD_HASH", stored)
+    monkeypatch.setenv("OTA_ACCESS_TOKEN", "secret")
+    monkeypatch.setenv("OTA_BASE_URL", "https://ota.example.com")
+
+    build_dir = ota_dir / "my-app" / "06-26-42"
+    build_dir.mkdir(parents=True)
+    (build_dir / "app.ipa").write_bytes(b"ipa")
+    (build_dir / "summary.json").write_text(
+        json.dumps({"status": "success", "display_name": "My App"}),
+        encoding="utf-8",
+    )
+    projects_json = tmp_path / "projects.json"
+    projects_json.write_text(
+        json.dumps({"projects": {"my-app": {"display_name": "My App"}}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("OTA_BUILDS_DIR", str(ota_dir))
+    monkeypatch.setenv("OTA_PROJECTS_JSON", str(projects_json))
+
+    session_id, _csrf = __import__("session").create_session()
+    harness = HandlerHarness("/latest/my-app", cookie=f"OTA_SESSION={session_id}")
+    headers: list[tuple[str, str]] = []
+    harness.handler.send_response = lambda code: None  # type: ignore[method-assign]
+    harness.handler.send_header = lambda key, value: headers.append((key, value))  # type: ignore[method-assign]
+    harness.handler.end_headers = lambda: None  # type: ignore[method-assign]
+
+    harness.handler._serve_latest_redirect("my-app")
+
+    location = next(value for key, value in headers if key == "Location")
+    assert "token=" not in location
+    assert location.endswith("/my-app/06-26-42/install.html")

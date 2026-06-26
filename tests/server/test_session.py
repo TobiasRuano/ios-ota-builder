@@ -15,10 +15,12 @@ from session import (
     clear_session_cookie_header,
     create_session,
     destroy_session,
+    get_csrf_token,
     get_session_id_from_handler,
     max_active_sessions,
     parse_cookies,
     session_cookie_header,
+    validate_csrf_token,
     validate_session,
 )
 
@@ -33,8 +35,10 @@ def clear_sessions() -> None:
 
 
 def test_create_and_validate_session() -> None:
-    session_id = create_session()
+    session_id, csrf_token = create_session()
+    assert csrf_token
     assert validate_session(session_id) is True
+    assert validate_csrf_token(session_id, csrf_token) is True
     destroy_session(session_id)
     assert validate_session(session_id) is False
 
@@ -61,17 +65,24 @@ def test_session_cookie_headers() -> None:
 
 def test_expired_session_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("OTA_SESSION_MAX_AGE", "1")
-    session_id = create_session()
+    session_id, csrf_token = create_session()
     with session_module._lock:
-        session_module._sessions[session_id] = time.time() - 1
+        session_module._sessions[session_id] = (time.time() - 1, csrf_token)
     assert validate_session(session_id) is False
+    assert get_csrf_token(session_id) is None
 
 
 def test_clear_all_sessions() -> None:
-    session_id = create_session()
+    session_id, _csrf = create_session()
     assert validate_session(session_id) is True
     clear_all_sessions()
     assert validate_session(session_id) is False
+
+
+def test_validate_csrf_rejects_wrong_token() -> None:
+    session_id, csrf_token = create_session()
+    assert validate_csrf_token(session_id, "wrong") is False
+    assert validate_csrf_token(session_id, csrf_token) is True
 
 
 def test_create_session_rejects_when_at_capacity(monkeypatch: pytest.MonkeyPatch) -> None:
