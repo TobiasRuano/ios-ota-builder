@@ -5,20 +5,29 @@ from __future__ import annotations
 import json
 import os
 from io import BytesIO
+from pathlib import Path
 from types import SimpleNamespace
 import pytest
 
+from credentials import hash_password
 from static_server import OTAHandler
 
 
 class HandlerHarness:
     """Minimal harness to exercise OTAHandler without starting a server."""
 
-    def __init__(self, path: str = "/", *, body: bytes = b"") -> None:
+    def __init__(
+        self,
+        path: str = "/",
+        *,
+        body: bytes = b"",
+        cookie: str = "",
+    ) -> None:
         self.handler = OTAHandler.__new__(OTAHandler)
         self.handler.path = path
         self.handler.headers = SimpleNamespace(get=lambda key, default="": {
             "Content-Length": str(len(body)),
+            "Cookie": cookie,
         }.get(key, default))
         self.handler.rfile = BytesIO(body)
         self.handler.wfile = BytesIO()
@@ -29,9 +38,12 @@ class HandlerHarness:
 
 
 def test_is_public_path() -> None:
-    assert OTAHandler._is_public_path("/health") is True
-    assert OTAHandler._is_public_path("/") is False
-    assert OTAHandler._is_public_path("/builds.json") is False
+    assert OTAHandler._is_public_path("/health", method="GET") is True
+    assert OTAHandler._is_public_path("/login", method="GET") is True
+    assert OTAHandler._is_public_path("/login", method="HEAD") is True
+    assert OTAHandler._is_public_path("/api/login", method="POST") is True
+    assert OTAHandler._is_public_path("/", method="GET") is False
+    assert OTAHandler._is_public_path("/builds.json", method="GET") is False
 
 
 def test_parse_latest_project() -> None:
@@ -121,3 +133,68 @@ def test_handle_delete_invalid_build(
     assert sent
     assert sent[0][0] == 400
     assert b"Delete failed" in sent[0][1]
+
+
+def test_handle_login_sets_session_cookie(monkeypatch: pytest.MonkeyPatch) -> None:
+    stored = hash_password("pass123")
+    monkeypatch.setenv("OTA_ADMIN_USERNAME", "admin")
+    monkeypatch.setenv("OTA_ADMIN_PASSWORD_HASH", stored)
+    monkeypatch.setenv("OTA_ACCESS_TOKEN", "secret")
+
+    harness = HandlerHarness(
+        "/api/login",
+        body=b"username=admin&password=pass123&next=%2F",
+    )
+    harness.handler.client_address = ("127.0.0.1", 54321)
+    headers: list[tuple[str, str]] = []
+
+    harness.handler.send_response = lambda code: None  # type: ignore[method-assign]
+    harness.handler.send_header = lambda key, value: headers.append((key, value))  # type: ignore[method-assign]
+    harness.handler.end_headers = lambda: None  # type: ignore[method-assign]
+
+    harness.handler._handle_login()
+
+    assert any(key == "Set-Cookie" and "OTA_SESSION=" in value for key, value in headers)
+    assert any(key == "Location" and value == "/?token=secret" for key, value in headers)
+
+
+def test_serve_dynamic_ota_artifact(
+    ota_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    build_dir = ota_dir / "my-app" / "06-26-42"
+    build_dir.mkdir(parents=True)
+    (build_dir / "app.ipa").write_bytes(b"ipa")
+    (build_dir / "summary.json").write_text(
+        json.dumps(
+            {
+                "status": "success",
+                "display_name": "My App",
+                "version": "1.0",
+                "build_number": "42",
+                "branch": "main",
+                "commit": "abc",
+                "date": "2026-06-26T12:00:00Z",
+                "configuration": "Release",
+            }
+        ),
+        encoding="utf-8",
+    )
+    projects_json = tmp_path / "projects.json"
+    projects_json.write_text(
+        json.dumps({"projects": {"my-app": {"display_name": "My App", "bundle_id": "com.example.app"}}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("OTA_BUILDS_DIR", str(ota_dir))
+    monkeypatch.setenv("OTA_PROJECTS_JSON", str(projects_json))
+    monkeypatch.setenv("OTA_BASE_URL", "https://ota.example.com")
+    monkeypatch.setenv("OTA_ACCESS_TOKEN", "live-token")
+
+    harness = HandlerHarness("/my-app/06-26-42/manifest.plist?token=live-token")
+    sent: list[tuple[int, bytes, str]] = []
+    harness.handler._send_bytes = lambda status, body, content_type: sent.append((status, body, content_type))  # type: ignore[method-assign]
+
+    assert harness.handler._serve_dynamic_ota_artifact("/my-app/06-26-42/manifest.plist") is True
+    assert sent[0][0] == 200
+    assert b"live-token" in sent[0][1]
