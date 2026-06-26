@@ -33,6 +33,7 @@ mkdir -p "$EXPORT_DIR" "$(dirname "$EXPORT_OPTIONS")"
 sed "s/TEAM_ID_PLACEHOLDER/$TEAM_ID/g" "$TEMPLATE" >"$EXPORT_OPTIONS"
 
 log "Exporting IPA (Ad Hoc)..."
+emit_build_stage exporting
 set +e
 "$XCODEBUILD" -exportArchive \
   -archivePath "$ARCHIVE_PATH" \

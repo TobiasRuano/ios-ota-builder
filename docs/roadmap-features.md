@@ -818,7 +818,7 @@ None.
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P2 |
 | **Effort** | M |
 | **Phase** | 4 |
@@ -826,8 +826,8 @@ None.
 **Problem**  
 Long stretches of silence during `xcodebuild` feel like a hung process.
 
-**Proposed solution**  
-Emit stage markers to stderr and optionally a status file:
+**Solution**  
+`emit_build_stage` in `scripts/lib/common.sh` writes machine-parseable markers to stderr:
 
 ```
 [stage] resolving_spm
@@ -836,22 +836,28 @@ Emit stage markers to stderr and optionally a status file:
 [stage] publishing
 ```
 
-Optional: `$BUILD_OUTPUT_DIR/build.status` JSON updated per stage for external polling.
+Extended stages: `environment`, `preparing`, `indexing`.
 
-**Files likely touched**
+Optional: `$BUILD_OUTPUT_DIR/build.status` JSON when `OTA_BUILD_STATUS=1` (external polling).
 
-- `agent_build_ota.sh`
-- `scripts/build_archive.sh`
-- `scripts/export_ipa.sh`
+Dashboard: in-progress row with animated progress bar; `GET /api/builds/jobs/<id>` returns `stage`, `stage_label`, `progress_pct` parsed from the job log.
+
+**Files touched**
+
+- `scripts/lib/common.sh` — `emit_build_stage`, `write_build_status`, `effective_build_stage`
+- `agent_build_ota.sh`, `scripts/build_archive.sh`, `scripts/export_ipa.sh`
+- `server/build_jobs.py`, `server/static_server.py`
+- `tools/ota_index.py`, `tools/ui_theme.py`
+- `scripts/run_build_job.sh`, `scripts/test_build_stage.sh`
 
 **Dependencies**  
 None.
 
 **Acceptance criteria**
 
-- [ ] Each major step logs a `[stage]` line before starting
-- [ ] Failure JSON includes last known stage
-- [ ] No change to success JSON schema (backward compatible)
+- [x] Each major step logs a `[stage]` line before starting
+- [x] Failure JSON includes last known stage
+- [x] No change to success JSON schema (backward compatible)
 
 ---
 

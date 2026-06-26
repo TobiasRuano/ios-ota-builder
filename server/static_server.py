@@ -31,6 +31,7 @@ from build_jobs import (  # noqa: E402
     BuildJobError,
     active_job_for_project,
     create_job,
+    enrich_job_with_progress,
     is_build_locked,
     list_jobs,
     log_path as job_log_path,
@@ -491,12 +492,15 @@ class OTAHandler(SimpleHTTPRequestHandler):
         if job is None:
             self._send_json(404, {"error": "job not found"})
             return
-        self._send_json(200, job)
+        self._send_json(200, enrich_job_with_progress(ROOT, job))
 
     def _handle_build_jobs_list(self) -> None:
         parsed = urlparse(self.path)
         project_id = parse_qs(parsed.query).get("project", [""])[0].strip()
-        jobs = list_jobs(ROOT, project_id=project_id, limit=20)
+        jobs = [
+            enrich_job_with_progress(ROOT, job)
+            for job in list_jobs(ROOT, project_id=project_id, limit=20)
+        ]
         self._send_json(200, {"jobs": jobs})
 
     def _handle_build_job_log(self, job_id: str) -> None:

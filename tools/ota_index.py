@@ -227,6 +227,123 @@ _BUILD_SCRIPT_BODY = """
     el.classList.toggle("is-active", !!active);
   }
 
+  var BUILDS_TABLE_HTML = '<table class="builds-table"><colgroup>'
+    + '<col class="col-build"><col class="col-branch"><col class="col-commit">'
+    + '<col class="col-version"><col class="col-duration"><col class="col-size"><col class="col-actions">'
+    + '</colgroup><thead><tr><th>Build</th><th>Branch</th><th>Commit</th>'
+    + '<th>Version</th><th>Duration</th><th>Size</th><th>Actions</th></tr></thead><tbody></tbody></table>';
+
+  function escapeHtml(text) {
+    var d = document.createElement("div");
+    d.textContent = text == null ? "" : String(text);
+    return d.innerHTML;
+  }
+
+  function findProjectCard(panel) {
+    return panel ? panel.closest(".project-card") : null;
+  }
+
+  function ensureBuildsTable(card) {
+    if (!card) return null;
+    var wrap = card.querySelector(".table-wrap");
+    if (wrap) return wrap.querySelector("tbody");
+    var empty = card.querySelector(".empty-state");
+    if (empty) empty.remove();
+    wrap = document.createElement("div");
+    wrap.className = "table-wrap";
+    wrap.innerHTML = BUILDS_TABLE_HTML;
+    card.appendChild(wrap);
+    return wrap.querySelector("tbody");
+  }
+
+  function findBuildRow(card, jobId) {
+    if (!card || !jobId) return null;
+    return card.querySelector('tr.build-row-in-progress[data-job-id="' + jobId + '"]');
+  }
+
+  function insertBuildRow(panel, job) {
+    var card = findProjectCard(panel);
+    var tbody = ensureBuildsTable(card);
+    if (!tbody || !job || !job.id) return;
+    if (findBuildRow(card, job.id)) return;
+    var branch = job.branch || "—";
+    var config = job.configuration || "";
+    var configBadge = config
+      ? '<span class="status-badge">' + escapeHtml(config) + "</span>"
+      : "";
+    var pct = job.progress_pct != null ? job.progress_pct : 5;
+    var label = job.stage_label || "Starting…";
+    var row = document.createElement("tr");
+    row.className = "build-row-in-progress";
+    row.setAttribute("data-job-id", job.id);
+    row.innerHTML =
+      '<td data-label="Build"><div class="build-name">'
+      + '<span class="build-label">Building…</span>'
+      + '<div class="badge-group"><span class="status-badge badge-in-progress">in progress</span>'
+      + configBadge + "</div>"
+      + '<div class="build-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="'
+      + pct + '"><div class="build-progress-bar" style="width:' + pct + '%"></div></div>'
+      + '<span class="build-progress-label">' + escapeHtml(label) + "</span>"
+      + "</div></td>"
+      + '<td class="cell-truncate" data-label="Branch">' + escapeHtml(branch) + "</td>"
+      + '<td class="cell-truncate" data-label="Commit">—</td>'
+      + '<td class="cell-nowrap" data-label="Version">—</td>'
+      + '<td class="meta-cell" data-label="Duration">—</td>'
+      + '<td class="meta-cell" data-label="Size">—</td>'
+      + '<td class="cell-actions">—</td>';
+    tbody.insertBefore(row, tbody.firstChild);
+  }
+
+  function updateBuildRow(panel, job) {
+    var card = findProjectCard(panel);
+    if (!job || !job.id) return;
+    var row = findBuildRow(card, job.id);
+    if (!row) {
+      insertBuildRow(panel, job);
+      row = findBuildRow(card, job.id);
+    }
+    if (!row) return;
+    var pct = job.progress_pct != null ? job.progress_pct : 5;
+    var label = job.stage_label || job.stage || job.status || "Building…";
+    var bar = row.querySelector(".build-progress-bar");
+    var progress = row.querySelector(".build-progress");
+    var labelEl = row.querySelector(".build-progress-label");
+    if (bar) {
+      bar.style.width = pct + "%";
+      bar.classList.toggle(
+        "is-active",
+        job.stage === "archiving" || job.stage === "exporting" || job.stage === "resolving_spm"
+      );
+    }
+    if (progress) progress.setAttribute("aria-valuenow", String(pct));
+    if (labelEl) labelEl.textContent = label;
+  }
+
+  function markBuildRowFailed(panel, job) {
+    var card = findProjectCard(panel);
+    var row = findBuildRow(card, job && job.id);
+    if (!row) return;
+    row.classList.remove("build-row-in-progress");
+    row.classList.add("build-row-failed");
+    var badgeGroup = row.querySelector(".badge-group");
+    if (badgeGroup) {
+      var html = '<span class="status-badge badge-failed">failed</span>';
+      if (job.stage_label || job.stage) {
+        html += '<span class="status-badge badge-failed-stage">@ '
+          + escapeHtml(job.stage_label || job.stage) + "</span>";
+      }
+      badgeGroup.innerHTML = html;
+    }
+    var labelEl = row.querySelector(".build-progress-label");
+    if (labelEl) {
+      labelEl.textContent = job.error
+        || ("Failed at " + (job.stage_label || job.stage || "unknown"));
+      labelEl.classList.add("build-progress-error");
+    }
+    var progress = row.querySelector(".build-progress");
+    if (progress) progress.remove();
+  }
+
   function fillBranchSelect(select, data, current) {
     while (select.options.length) select.remove(0);
     var groups = [
@@ -338,6 +455,7 @@ _BUILD_SCRIPT_BODY = """
           startBtn.disabled = !!(data.has_conflicts || data.active_job);
         }
         if (data.active_job && data.active_job.id) {
+          insertBuildRow(panel, data.active_job);
           pollJob(panel, data.active_job.id);
         }
       })
@@ -351,6 +469,7 @@ _BUILD_SCRIPT_BODY = """
     if (!jobsUrl) return;
     var jobUrl = jobsUrl.replace(/\\/?$/, "") + "/" + encodeURIComponent(jobId);
     setProgress(panel, "Build in progress…", true);
+    insertBuildRow(panel, { id: jobId, progress_pct: 5, stage_label: "Starting…" });
     var startBtn = panel.querySelector(".btn-build-start");
     if (startBtn) startBtn.disabled = true;
 
@@ -361,18 +480,25 @@ _BUILD_SCRIPT_BODY = """
           if (!job || job.error) return;
           var st = job.status || "";
           if (st === "queued" || st === "preparing" || st === "building") {
-            setProgress(panel, "Build " + st + "…", true);
+            var msg = job.stage_label || ("Build " + st + "…");
+            setProgress(panel, msg, true);
+            updateBuildRow(panel, job);
             setTimeout(check, POLL_MS);
             return;
           }
           if (st === "success") {
             setProgress(panel, "Build succeeded — refreshing…", false);
+            updateBuildRow(panel, Object.assign({}, job, { progress_pct: 100, stage_label: "Complete" }));
             setTimeout(function () { window.location.reload(); }, 1200);
             return;
           }
-          setProgress(panel, job.error || "Build failed", true);
-          if (startBtn) startBtn.disabled = false;
-          loadGitStatus(panel);
+          markBuildRowFailed(panel, job);
+          setProgress(
+            panel,
+            job.error || ("Failed at " + (job.stage_label || job.stage || "unknown")),
+            true
+          );
+          setTimeout(function () { window.location.reload(); }, 1200);
         })
         .catch(function () {
           setTimeout(check, POLL_MS);
@@ -1058,6 +1184,11 @@ def _build_badges(build: dict) -> str:
         )
     elif status == "failure":
         badges.append('<span class="status-badge badge-failed">failed</span>')
+        stage = build.get("stage")
+        if stage:
+            badges.append(
+                f'<span class="status-badge badge-failed-stage">@ {html.escape(str(stage))}</span>'
+            )
     elif status:
         label = html.escape(str(status))
         badges.append(f'<span class="status-badge">{label}</span>')

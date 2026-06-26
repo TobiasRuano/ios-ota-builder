@@ -107,6 +107,12 @@ on_exit() {
     OTA_BUILD_NUMBER="$(<"$BUILD_OUTPUT_DIR/.ota_build_number")"
     export OTA_BUILD_NUMBER
   fi
+  local effective_stage
+  effective_stage="$(effective_build_stage)"
+  if [[ -n "$effective_stage" ]]; then
+    FAILED_STAGE="$effective_stage"
+    export FAILED_STAGE
+  fi
   if [[ "${BUILD_PUBLISHED:-false}" == "true" ]]; then
     print_result_json >&2 || true
     notify_build_result "$ec" || true
@@ -116,8 +122,11 @@ on_exit() {
     "$OTA_BUILDER_ROOT/scripts/resolve_build_number.sh" rollback || true
   fi
   if [[ $ec -ne 0 && -n "${BUILD_OUTPUT_DIR:-}" && -d "$BUILD_OUTPUT_DIR" ]]; then
-    run_diagnostics "${FAILED_STAGE:-unknown}"
-    write_summary_json "failure" "${FAILED_STAGE:-unknown}" "$(($(date +%s) - START_EPOCH))" "" "" "" "${APP_VERSION:-}" "${APP_BUILD:-}" "" "" "$CONFIGURATION" "0" || true
+    run_diagnostics "${effective_stage:-unknown}"
+    write_summary_json "failure" "${effective_stage:-unknown}" "$(($(date +%s) - START_EPOCH))" "" "" "" "${APP_VERSION:-}" "${APP_BUILD:-}" "" "" "$CONFIGURATION" "0" || true
+    if [[ "${OTA_BUILD_STATUS:-0}" == "1" ]]; then
+      write_build_status "failure" "${effective_stage:-unknown}" || true
+    fi
     print_result_json >&2 || true
   fi
   notify_build_result "$ec" || true
@@ -156,6 +165,8 @@ main() {
   mkdir -p "$OTA_BUILDS_DIR"
   acquire_build_lock
 
+  emit_build_stage environment
+
   log "=== OTA Build: $DISPLAY_NAME ($PROJECT_ID) ==="
   log "Configuration: $CONFIGURATION"
   log "Branch: $GIT_BRANCH | Commit: $GIT_COMMIT"
@@ -183,9 +194,10 @@ main() {
   make_build_dir
   export PROJECT_ID BUILD_OUTPUT_DIR
 
+  emit_build_stage preparing
+
   # Archive
   if ! "$OTA_BUILDER_ROOT/scripts/build_archive.sh"; then
-    FAILED_STAGE="archive"
     exit "$EC_ARCHIVE"
   fi
   ARCHIVE_PATH="$BUILD_OUTPUT_DIR/work/app.xcarchive"
@@ -202,7 +214,6 @@ main() {
     printf '%s\n%s\n' "$mismatch_msg" "$fix_msg" >"$BUILD_OUTPUT_DIR/.ota_failure_reason"
     log_error "$mismatch_msg"
     log "$fix_msg"
-    FAILED_STAGE="archive"
     exit "$EC_ARCHIVE"
   fi
 
@@ -212,11 +223,12 @@ main() {
 
   # Export IPA
   if ! "$OTA_BUILDER_ROOT/scripts/export_ipa.sh" "$ARCHIVE_PATH" "$BUILD_OUTPUT_DIR"; then
-    FAILED_STAGE="export"
     exit "$EC_EXPORT"
   fi
 
   read_archive_version "$ARCHIVE_PATH"
+
+  emit_build_stage publishing
 
   # F04: extract app icon (non-blocking)
   ICON_REL_PATH=""
@@ -266,7 +278,6 @@ main() {
   if ! python3 "$OTA_BUILDER_ROOT/tools/generate_manifest.py" \
     "${MANIFEST_ARGS[@]}" \
     >&2; then
-    FAILED_STAGE="manifest"
     exit "$EC_MANIFEST"
   fi
 
@@ -280,11 +291,15 @@ main() {
 
   DURATION=$(($(date +%s) - START_EPOCH))
   write_summary_json "success" "" "$DURATION" "$INSTALL_URL" "$MANIFEST_URL" "$IPA_URL" "$APP_VERSION" "$APP_BUILD" "$DASHBOARD_URL" "$LATEST_INSTALL_URL" "$CONFIGURATION" "$IPA_SIZE_BYTES" "$IPA_FILENAME" "$BUILD_LABEL" "$ICON_REL_PATH" "$RELEASE_NOTES"
+  if [[ "${OTA_BUILD_STATUS:-0}" == "1" ]]; then
+    write_build_status "success" ""
+  fi
   BUILD_PUBLISHED=true
   export BUILD_PUBLISHED
 
+  emit_build_stage indexing
+
   if ! "$OTA_BUILDER_ROOT/scripts/cleanup_ota.sh" >&2; then
-    FAILED_STAGE="index"
     exit "$EC_INDEX"
   fi
 

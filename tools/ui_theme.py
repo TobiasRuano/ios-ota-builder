@@ -653,6 +653,71 @@ table.builds-table tbody tr.build-row-failed:hover td {
   background: color-mix(in srgb, var(--badge-failed-bg) 55%, transparent);
 }
 
+table.builds-table tbody tr.build-row-in-progress td {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+table.builds-table tbody tr.build-row-in-progress:hover td {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.build-progress {
+  width: 100%;
+  max-width: 14rem;
+  height: .35rem;
+  margin-top: .4rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-muted));
+  overflow: hidden;
+}
+
+.build-progress-bar {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width .8s ease;
+}
+
+.build-progress-bar.is-active {
+  background: linear-gradient(
+    90deg,
+    var(--accent) 0%,
+    color-mix(in srgb, var(--accent) 70%, white) 50%,
+    var(--accent) 100%
+  );
+  background-size: 200% 100%;
+  animation: build-progress-shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes build-progress-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+.build-progress-label {
+  display: block;
+  margin-top: .3rem;
+  font-size: .78rem;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.build-progress-label.build-progress-error {
+  color: var(--badge-failed-text, #b42318);
+  font-weight: 500;
+}
+
+.status-badge.badge-in-progress {
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  color: var(--accent);
+}
+
+.status-badge.badge-failed-stage {
+  background: color-mix(in srgb, var(--badge-failed-bg) 80%, transparent);
+  color: var(--badge-failed-text, #b42318);
+}
+
 .btn-primary.is-disabled {
   opacity: 0.55;
   cursor: not-allowed;

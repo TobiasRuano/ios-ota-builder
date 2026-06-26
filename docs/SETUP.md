@@ -187,6 +187,15 @@ Regression test (Linux or macOS, no real build required):
 
 Or only the F15 shell tests: `./scripts/test_notify_build_result.sh`
 
+Or only the F17 build stage tests: `./scripts/test_build_stage.sh`
+
+### Live build progress (F17)
+
+During a build, the pipeline emits `[stage] <name>` lines to stderr (also captured in dashboard job logs). Stages include `resolving_spm`, `archiving`, `exporting`, `publishing`, and others.
+
+- **Dashboard:** starting a build inserts an in-progress row with a progress bar; job polling uses `GET /api/builds/jobs/<id>` (`stage`, `stage_label`, `progress_pct`).
+- **Optional file polling:** set `OTA_BUILD_STATUS=1` in `local.env` to write `OTA-Builds/<project>/<dir>/build.status` JSON on each stage.
+
 ### Dashboard builds (F29)
 
 Each project card on the dashboard includes a **New build** button in the header when accessed with a valid token. Click it to open the build form. You can:

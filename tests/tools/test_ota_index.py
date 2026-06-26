@@ -9,6 +9,7 @@ import pytest
 
 from conftest import write_failure_build, write_success_build
 from ota_index import (
+    _build_badges,
     _build_entry_if_valid,
     _build_failure_entry,
     _build_sort_key,
@@ -394,3 +395,24 @@ def test_render_index_includes_build_notes_details(ota_dir: Path, projects_confi
     assert 'class="build-notes"' in html
     assert "Fixed login crash" in html
     assert "Release notes" in html
+
+
+def test_build_badges_failure_includes_stage() -> None:
+    badges = _build_badges({"status": "failure", "stage": "archiving"})
+    assert "failed" in badges
+    assert "@ archiving" in badges
+
+
+def test_render_index_includes_build_progress_script(projects_config: dict) -> None:
+    data = {"projects": projects_config, "generated_at": "2026-01-01T00:00:00Z"}
+    html = render_index(
+        data,
+        "https://ota.example.com",
+        None,
+        auth_mode="session",
+        csrf_token="csrf-test",
+        enable_build=True,
+    )
+    assert "insertBuildRow" in html
+    assert "build-progress-bar" in html
+    assert "updateBuildRow" in html
