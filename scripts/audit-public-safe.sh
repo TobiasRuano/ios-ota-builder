@@ -52,7 +52,8 @@ done
 
 # Spanish text in tracked prose files (docs and config examples)
 SPANISH_PATTERN='[áéíóúñüÁÉÍÓÚÑÜ¿¡]|\b(Editá|Abrí|Seguí|Anotá|Tocá|podés|rotás|necesitás|descargalos|cargá|guardala|Plantilla|Guía|Configuración|Descripción|Inicio rápido)\b'
-if git grep -iE "$SPANISH_PATTERN" -- '*.md' '*.example' 2>/dev/null; then
+SPANISH_LOCALE="${AUDIT_SPANISH_LOCALE:-en_US.UTF-8}"
+if LC_ALL="$SPANISH_LOCALE" LANG="$SPANISH_LOCALE" git grep -iE "$SPANISH_PATTERN" -- '*.md' '*.example' 2>/dev/null; then
   log_fail "Spanish text detected in tracked files (see above)"
 else
   log_ok "No Spanish text in tracked docs"
