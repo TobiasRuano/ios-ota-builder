@@ -89,3 +89,8 @@ def test_wants_html_login_redirect_for_get_html() -> None:
     assert wants_html_login_redirect(handler) is True
     handler = MockHandler("/", command="POST", accept="text/html")
     assert wants_html_login_redirect(handler) is False
+
+
+def test_safe_next_path_rejects_backslash() -> None:
+    assert safe_next_path("/\\evil") == "/"
+    assert safe_next_path("/%5cevil") == "/"

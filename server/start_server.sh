@@ -10,6 +10,9 @@ source "$ROOT/config/env.sh"
 mkdir -p "$OTA_BUILDS_DIR"
 
 export OTA_BUILDS_DIR OTA_PORT OTA_ACCESS_TOKEN OTA_BASE_URL
-export OTA_ADMIN_USERNAME OTA_ADMIN_PASSWORD_HASH OTA_SESSION_MAX_AGE
+export OTA_ADMIN_USERNAME OTA_ADMIN_PASSWORD_HASH OTA_SESSION_MAX_AGE OTA_MAX_ACTIVE_SESSIONS
 export OTA_PROJECTS_JSON="$ROOT/config/projects.json"
+if [[ -z "${OTA_ACCESS_TOKEN:-}" ]]; then
+  echo "Warning: OTA_ACCESS_TOKEN not set — auth disabled" >&2
+fi
 exec python3 "$ROOT/server/static_server.py"

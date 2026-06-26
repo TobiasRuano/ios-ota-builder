@@ -276,6 +276,8 @@ Single admin account (not multi-user). Credentials live in `config/local.env`:
 - `OTA_ADMIN_USERNAME` (default `admin`)
 - `OTA_ADMIN_PASSWORD_HASH` (PBKDF2; set via `./scripts/set_admin_password.sh`)
 
+Passwords must be at least **12 characters**. After changing credentials, **always** run `./server/restart_server.sh` to apply the new hash and invalidate active sessions.
+
 After login, the server sets an `HttpOnly` session cookie (`OTA_SESSION`, 7 days by default). The dashboard and delete actions work with either:
 
 - a valid session cookie, or
@@ -307,3 +309,23 @@ Manual rotation (any time):
 ```
 
 Local scripts on the Mac (`agent_build_ota.sh`, `print_dashboard_url.sh`) read the new token from `config/local.env` automatically.
+
+### Security checklist
+
+| Requirement | Why |
+|-------------|-----|
+| Set `OTA_ACCESS_TOKEN` | If empty, the Python server serves **everything without auth** (fail-open) |
+| Use the **Python server** (`ota-server` LaunchAgent), not nginx alone | nginx serves static files with no login or token checks |
+| HTTPS via Cloudflare Tunnel | Required for OTA; session cookies use the `Secure` flag |
+| `chmod 600` on `config/local.env` | Keeps token and password hash private |
+| Password ≥ 12 characters | Enforced by `set_admin_password.sh` |
+| Restart after password change | Running server keeps old sessions until restart |
+| Treat `?token=` URLs as secrets | Required for iOS OTA; do not share publicly |
+| `SameSite=Lax` on session cookie | Sufficient for personal use; XSS on your domain would be the main CSRF-like risk |
+
+Optional tuning in `config/local.env`:
+
+```bash
+OTA_SESSION_MAX_AGE=604800        # session lifetime (seconds)
+OTA_MAX_ACTIVE_SESSIONS=32        # cap concurrent login sessions
+```

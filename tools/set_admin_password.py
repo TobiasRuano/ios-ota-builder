@@ -11,7 +11,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "server"))
 
-from credentials import DEFAULT_ADMIN_USERNAME, hash_password  # noqa: E402
+from credentials import (  # noqa: E402
+    DEFAULT_ADMIN_USERNAME,
+    PasswordValidationError,
+    hash_password,
+    validate_password_strength,
+)
 
 LOCAL_ENV = ROOT / "config" / "local.env"
 
@@ -47,6 +52,11 @@ def main() -> int:
     if password != confirm:
         print("Passwords do not match.", file=sys.stderr)
         return 1
+    try:
+        validate_password_strength(password)
+    except PasswordValidationError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
 
     password_hash = hash_password(password)
     lines = LOCAL_ENV.read_text(encoding="utf-8").splitlines()
@@ -56,7 +66,7 @@ def main() -> int:
     LOCAL_ENV.chmod(0o600)
 
     print(f"Updated admin credentials in {LOCAL_ENV}")
-    print(f"Restart server: {ROOT}/server/restart_server.sh")
+    print(f"Restart server (required to apply and invalidate sessions): {ROOT}/server/restart_server.sh")
     return 0
 
 

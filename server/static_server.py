@@ -24,6 +24,7 @@ from auth import (  # noqa: E402
     send_unauthorized,
 )
 from build_delete import BuildDeleteError, delete_build  # noqa: E402
+from client_ip import client_ip_from_request  # noqa: E402
 from credentials import admin_login_enabled, verify_admin_credentials  # noqa: E402
 from login_rate_limit import is_rate_limited, record_failure  # noqa: E402
 from ota_dynamic import parse_ota_artifact_path, render_ota_artifact  # noqa: E402
@@ -37,6 +38,7 @@ from ota_index import (  # noqa: E402
 )
 from auth_urls import with_access_token  # noqa: E402
 from session import (  # noqa: E402
+    SessionCapacityError,
     clear_session_cookie_header,
     create_session,
     destroy_session,
@@ -46,6 +48,7 @@ from session import (  # noqa: E402
 from ui_theme import login_html  # noqa: E402
 
 SERVER_START_MONO: float = 0.0
+MAX_FORM_BODY_BYTES = 8192
 
 
 class OTAHandler(SimpleHTTPRequestHandler):
@@ -70,12 +73,6 @@ class OTAHandler(SimpleHTTPRequestHandler):
         if path == "/api/login" and method == "POST":
             return True
         return False
-
-    def _client_ip(self) -> str:
-        forwarded = self.headers.get("X-Forwarded-For", "")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
-        return self.client_address[0]
 
     def _check_auth(self) -> bool:
         token = get_access_token()
@@ -146,7 +143,7 @@ class OTAHandler(SimpleHTTPRequestHandler):
             self.send_error(404, "Admin login is not configured")
             return
 
-        client_ip = self._client_ip()
+        client_ip = client_ip_from_request(self)
         if is_rate_limited(client_ip):
             body = login_html(
                 next_path="/",
@@ -159,7 +156,10 @@ class OTAHandler(SimpleHTTPRequestHandler):
             self.wfile.write(body)
             return
 
-        form = self._parse_form_body()
+        form = self._read_limited_form_body()
+        if form is None:
+            return
+
         username = form.get("username", "").strip()
         password = form.get("password", "")
         next_path = safe_next_path(form.get("next", "/"))
@@ -176,7 +176,20 @@ class OTAHandler(SimpleHTTPRequestHandler):
             self.wfile.write(body)
             return
 
-        session_id = create_session()
+        try:
+            session_id = create_session()
+        except SessionCapacityError:
+            body = login_html(
+                next_path=next_path,
+                error="Too many active sessions. Try again later or restart the server.",
+            ).encode("utf-8")
+            self.send_response(503)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
         redirect = with_access_token(next_path, get_access_token() or None)
         self.send_response(302)
         self.send_header("Location", redirect)
@@ -264,6 +277,7 @@ class OTAHandler(SimpleHTTPRequestHandler):
             token,
             enable_delete=bool(token),
             enable_restart=bool(token),
+            enable_logout=admin_login_enabled(),
             server_status=self._server_status(),
         )
         self._send_bytes(200, html_body.encode("utf-8"), "text/html; charset=utf-8")
@@ -294,14 +308,31 @@ class OTAHandler(SimpleHTTPRequestHandler):
         self._send_bytes(200, body, content_type)
         return True
 
-    def _parse_form_body(self) -> dict[str, str]:
-        length = int(self.headers.get("Content-Length", "0"))
+    def _read_limited_form_body(self) -> dict[str, str] | None:
+        raw_length = self.headers.get("Content-Length", "0")
+        try:
+            length = int(raw_length)
+        except ValueError:
+            self.send_error(400, "Invalid Content-Length")
+            return None
+        if length < 0:
+            self.send_error(400, "Invalid Content-Length")
+            return None
+        if length > MAX_FORM_BODY_BYTES:
+            self.send_error(413, "Request body too large")
+            return None
         raw = self.rfile.read(length) if length else b""
         parsed = parse_qs(raw.decode("utf-8", errors="replace"))
         return {k: v[0] if v else "" for k, v in parsed.items()}
 
+    def _parse_form_body(self) -> dict[str, str]:
+        form = self._read_limited_form_body()
+        return form if form is not None else {}
+
     def _handle_delete(self) -> None:
-        form = self._parse_form_body()
+        form = self._read_limited_form_body()
+        if form is None:
+            return
         project_id = form.get("project_id", "").strip()
         build_dir = form.get("build_dir", "").strip()
         token = get_access_token()
@@ -427,6 +458,7 @@ def main() -> None:
             f"(auth: {', '.join(auth_bits)}, dynamic index)"
         )
     else:
+        print("Warning: OTA_ACCESS_TOKEN not set — auth disabled", file=sys.stderr)
         print(f"Serving {root} at http://127.0.0.1:{port}/ (auth: disabled)")
     server.serve_forever()
 

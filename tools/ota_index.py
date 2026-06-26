@@ -824,6 +824,7 @@ def render_index(
     *,
     enable_delete: bool = True,
     enable_restart: bool = True,
+    enable_logout: bool = False,
     ota_dir: Path | None = None,
     server_status: dict | None = None,
     min_disk_mb: int = 5000,
@@ -833,6 +834,14 @@ def render_index(
 
     def u(url: str) -> str:
         return with_access_token(url, access_token or None)
+
+    logout_html = ""
+    if enable_logout:
+        logout_html = (
+            '<form class="inline page-header-action" method="post" action="/api/logout">'
+            '<button type="submit" class="btn-primary">Sign out</button>'
+            "</form>"
+        )
 
     sections: list[str] = []
     sections.append(
@@ -845,6 +854,7 @@ def render_index(
       <p class="kicker">Builds</p>
       <h1>iOS OTA Builds</h1>
       <p class="muted">Generated {html.escape(data.get("generated_at", ""))}</p>
+      {logout_html}
     </header>
 """
     )

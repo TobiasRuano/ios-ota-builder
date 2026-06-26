@@ -5,9 +5,12 @@ from __future__ import annotations
 import pytest
 
 from credentials import (
+    MAX_PBKDF2_ITERATIONS,
+    PasswordValidationError,
     admin_login_enabled,
     get_admin_password_hash,
     hash_password,
+    validate_password_strength,
     verify_admin_credentials,
     verify_password,
 )
@@ -42,3 +45,25 @@ def test_verify_admin_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
     assert verify_admin_credentials("admin", "admin-secret") is True
     assert verify_admin_credentials("admin", "nope") is False
     assert verify_admin_credentials("other", "admin-secret") is False
+
+
+def test_verify_password_rejects_excessive_iterations() -> None:
+    malicious = f"pbkdf2$sha256$999999999$deadbeef$" + ("00" * 32)
+    assert verify_password("anything", malicious) is False
+
+
+def test_validate_password_strength_requires_min_length() -> None:
+    with pytest.raises(PasswordValidationError):
+        validate_password_strength("short")
+    validate_password_strength("a" * 12)
+
+
+def test_verify_admin_credentials_runs_pbkdf2_for_wrong_username(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stored = hash_password("admin-secret")
+    monkeypatch.setenv("OTA_ADMIN_USERNAME", "admin")
+    monkeypatch.setenv("OTA_ADMIN_PASSWORD_HASH", stored)
+
+    assert verify_admin_credentials("wrong-user", "admin-secret") is False
+    assert MAX_PBKDF2_ITERATIONS == 1_000_000

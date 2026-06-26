@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 import sys
 from http.server import SimpleHTTPRequestHandler
 from pathlib import Path
@@ -27,11 +28,13 @@ def _token_authorized(handler: SimpleHTTPRequestHandler, token: str) -> bool:
 
     parsed = urlparse(handler.path)
     query = parse_qs(parsed.query)
-    if query.get("token", [""])[0] == token:
+    provided = query.get("token", [""])[0]
+    if secrets.compare_digest(provided, token):
         return True
 
     auth = handler.headers.get("Authorization", "")
-    if auth == f"Bearer {token}":
+    bearer = f"Bearer {token}"
+    if len(auth) == len(bearer) and secrets.compare_digest(auth, bearer):
         return True
 
     return False
@@ -64,6 +67,8 @@ def wants_html_login_redirect(handler: SimpleHTTPRequestHandler) -> bool:
 
 def safe_next_path(raw: str | None) -> str:
     if not raw:
+        return "/"
+    if "\\" in raw or "%5c" in raw.lower():
         return "/"
     if not raw.startswith("/") or raw.startswith("//"):
         return "/"

@@ -10,10 +10,13 @@ import pytest
 import session as session_module
 from session import (
     SESSION_COOKIE_NAME,
+    SessionCapacityError,
+    clear_all_sessions,
     clear_session_cookie_header,
     create_session,
     destroy_session,
     get_session_id_from_handler,
+    max_active_sessions,
     parse_cookies,
     session_cookie_header,
     validate_session,
@@ -62,3 +65,19 @@ def test_expired_session_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     with session_module._lock:
         session_module._sessions[session_id] = time.time() - 1
     assert validate_session(session_id) is False
+
+
+def test_clear_all_sessions() -> None:
+    session_id = create_session()
+    assert validate_session(session_id) is True
+    clear_all_sessions()
+    assert validate_session(session_id) is False
+
+
+def test_create_session_rejects_when_at_capacity(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OTA_MAX_ACTIVE_SESSIONS", "2")
+    create_session()
+    create_session()
+    with pytest.raises(SessionCapacityError):
+        create_session()
+    assert max_active_sessions() == 2

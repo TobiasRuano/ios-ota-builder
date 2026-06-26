@@ -10,9 +10,14 @@ from http.server import BaseHTTPRequestHandler
 
 SESSION_COOKIE_NAME = "OTA_SESSION"
 DEFAULT_MAX_AGE = 7 * 24 * 3600
+DEFAULT_MAX_ACTIVE_SESSIONS = 32
 
 _lock = threading.Lock()
 _sessions: dict[str, float] = {}
+
+
+class SessionCapacityError(RuntimeError):
+    pass
 
 
 def session_max_age() -> int:
@@ -23,12 +28,22 @@ def session_max_age() -> int:
         return DEFAULT_MAX_AGE
 
 
+def max_active_sessions() -> int:
+    raw = os.environ.get("OTA_MAX_ACTIVE_SESSIONS", str(DEFAULT_MAX_ACTIVE_SESSIONS))
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        return DEFAULT_MAX_ACTIVE_SESSIONS
+
+
 def create_session() -> str:
     session_id = secrets.token_urlsafe(32)
     expires = time.time() + session_max_age()
     with _lock:
-        _sessions[session_id] = expires
         _purge_expired_locked()
+        if len(_sessions) >= max_active_sessions():
+            raise SessionCapacityError("maximum active sessions reached")
+        _sessions[session_id] = expires
     return session_id
 
 
@@ -51,6 +66,11 @@ def destroy_session(session_id: str | None) -> None:
         return
     with _lock:
         _sessions.pop(session_id, None)
+
+
+def clear_all_sessions() -> None:
+    with _lock:
+        _sessions.clear()
 
 
 def _purge_expired_locked() -> None:

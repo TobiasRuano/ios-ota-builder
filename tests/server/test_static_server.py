@@ -241,3 +241,12 @@ def test_handle_restart_missing_script_returns_500(monkeypatch: pytest.MonkeyPat
     assert sent[0][0] == 500
     payload = json.loads(sent[0][1].decode("utf-8"))
     assert "restart script not found" in payload["error"]
+
+
+def test_read_limited_form_body_rejects_oversized_payload() -> None:
+    harness = HandlerHarness(body=b"x" * 9000)
+    errors: list[int] = []
+    harness.handler.send_error = lambda code, message=None: errors.append(code)  # type: ignore[method-assign, assignment]
+    form = harness.handler._read_limited_form_body()
+    assert form is None
+    assert errors == [413]
