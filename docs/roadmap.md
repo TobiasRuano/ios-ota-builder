@@ -95,7 +95,7 @@ flowchart LR
 
 Start here for maximum impact with minimal risk:
 
-1. **F12** — Auto-increment build number (branch `feature/auto-increment-build-number` already exists)
+1. **F12** — Auto-increment build number (see spec; draft may exist on `feature/auto-increment-build-number`)
 2. **F02** — QR code + basic metadata on install page
 3. **F03** — `/latest/<project-id>` redirect
 4. **F06** — Copy-to-clipboard on dashboard

@@ -31,10 +31,13 @@ Reuse shared styles from `tools/ui_theme.py` so install pages match the dashboar
 
 **Files likely touched**
 
-- `tools/generate_manifest.py` — accept new CLI args or read `summary.json`
+- `tools/generate_manifest.py` — accept metadata via CLI args (branch, commit, date, configuration, release notes)
 - `tools/ui_theme.py` — install-card layout helpers if needed
-- `agent_build_ota.sh` / `scripts/lib/common.sh` — pass metadata into manifest generator
+- `agent_build_ota.sh` / `scripts/lib/common.sh` — pass metadata into manifest generator before `write_summary_json`
 - `docs/SETUP.md` — no config change required
+
+**Pipeline order**  
+`generate_manifest.py` runs **before** `write_summary_json` in `agent_build_ota.sh`. Do not read `summary.json` from the manifest generator — pass all display fields as CLI arguments (or env). `summary.json` is written afterward with the same values for the dashboard.
 
 **Dependencies**  
 F05 (release notes) is optional; F04 (icon) can be added independently.
@@ -453,28 +456,34 @@ None.
 Reinstalling an OTA build with the same `CFBundleVersion` can confuse iOS or skip updates. Manually bumping build numbers before each OTA build is tedious.
 
 **Proposed solution**  
-Merge branch `feature/auto-increment-build-number` and integrate `scripts/resolve_build_number.sh` into the pipeline **before** archive:
+Add `scripts/resolve_build_number.sh` and call it from the pipeline **before** archive:
 
 1. Read current `CFBundleVersion` from Xcode project
-2. Compare with last successful OTA build and persisted counter (with `flock`)
+2. Compare with last successful OTA build and persisted counter (serialized with a portable lock — see below)
 3. Bump to `max(project, ota, stored) + 1`
-4. Write back to project (or use `agvtool` / `PlistBuddy` as implemented on branch)
+4. Write back to project (via `agvtool`, `PlistBuddy`, or equivalent)
 5. Fail on non-integer `CFBundleVersion`
 
 **Files likely touched**
 
-- `scripts/resolve_build_number.sh` (exists on feature branch)
+- `scripts/resolve_build_number.sh` (new, or merge from `feature/auto-increment-build-number` if that branch is available on the remote)
 - `agent_build_ota.sh` — call before `build_archive.sh`
 - `docs/AGENT_INSTRUCTIONS.md` — note that pipeline may modify build number only
 - `.gitignore` — counter state file if used
 
 **Dependencies**  
-None. **First actionable step:** merge or cherry-pick `feature/auto-increment-build-number`.
+None.
+
+**First actionable step**  
+Implement from this spec, or merge/cherry-pick `feature/auto-increment-build-number` from the GitHub remote when present. A fresh clone of `main` alone does not include the script — fetch remotes or implement from scratch.
+
+**Locking (macOS)**  
+Use a portable advisory lock (e.g. atomic `mkdir` on a lock directory, as in the draft `resolve_build_number.sh`). Do **not** rely on the `flock` shell CLI — it is not part of stock macOS.
 
 **Acceptance criteria**
 
 - [ ] Each successful build has a strictly increasing integer `CFBundleVersion`
-- [ ] Concurrent builds serialize counter updates (`flock`)
+- [ ] Concurrent builds serialize counter updates (portable lock, no external `flock` binary)
 - [ ] Counter revalidates against OTA `summary.json` history
 - [ ] Non-integer bundle version fails with clear error
 - [ ] Documented in SETUP.md as intentional pipeline side effect
@@ -529,7 +538,10 @@ None.
 Two simultaneous builds for the same app can corrupt DerivedData or race on export.
 
 **Proposed solution**  
-Acquire `flock` on `$OTA_BUILDS_DIR/.lock-<project-id>` at start of `agent_build_ota.sh`; release on exit. Second invocation waits or fails immediately with `OTA_BUILD_LOCK=wait|fail` (default: fail fast with message).
+Acquire an advisory lock at start of `agent_build_ota.sh` and release on exit. Second invocation waits or fails immediately with `OTA_BUILD_LOCK=wait|fail` (default: fail fast with message).
+
+**Locking (macOS)**  
+Use a portable mechanism available on stock macOS — e.g. atomic `mkdir` on `$OTA_BUILDS_DIR/.lock-<project-id>/` with retry/timeout, matching the pattern planned for F12. Do **not** call the `flock` shell command (not installed by default on macOS).
 
 **Files likely touched**
 
@@ -564,7 +576,7 @@ Archive + export can take several minutes; you switch context and miss when the 
 On pipeline exit (success or failure):
 
 1. **macOS notification** via `osascript` (always on by default, disable with `OTA_NOTIFY=0`)
-2. **Optional webhook** — `OTA_WEBHOOK_URL` POSTs JSON `{ status, project, install_url, duration_seconds, stage }`
+2. **Optional webhook** — `OTA_WEBHOOK_URL` POSTs JSON with **tokenless** fields only, e.g. `{ status, project, duration_seconds, stage, install_path }` where `install_path` is the path without query string (`/my-app/.../install.html`). Never POST `install_url` or `dashboard_url` from `ota_url()` — those include `?token=...` and would leak the OTA access token to Slack/Discord logs. Authenticate the webhook with a separate `OTA_WEBHOOK_SECRET` header if needed.
 
 **Files likely touched**
 
@@ -580,7 +592,8 @@ None.
 - [ ] Success shows macOS notification with app name
 - [ ] Failure shows notification with stage (archive/export/etc.)
 - [ ] Webhook fires only when `OTA_WEBHOOK_URL` is set
-- [ ] Notifications never include full token in notification body (truncate or omit)
+- [ ] Webhook payload never includes `?token=` or the OTA access token
+- [ ] macOS notifications never include full token in the body (truncate or omit)
 
 ---
 
@@ -1073,7 +1086,7 @@ Several features extend `summary.json`. New fields should be optional so older b
 
 ### Auth and tokens
 
-Features that expose URLs (F02 QR, F06 copy, F15 notifications) must not leak tokens into logs or public notification centers. Webhooks should use a dedicated secret header, not the OTA access token.
+Features that expose URLs (F02 QR, F06 copy, F15 notifications) must not leak tokens into logs, webhooks, or public notification centers. QR and copy intentionally include the token for authorized install — webhooks and macOS notifications must not. Webhooks should use a dedicated `OTA_WEBHOOK_SECRET` header, not the OTA access token in the JSON body.
 
 ### Testing checklist (per feature)
 
