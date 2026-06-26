@@ -558,6 +558,44 @@ def _format_ipa_size(bytes_: int | None) -> str:
     return f"{mb:.2f} MB"
 
 
+_BUILDS_TABLE_COLGROUP = (
+    "<colgroup>"
+    '<col class="col-build">'
+    '<col class="col-branch">'
+    '<col class="col-commit">'
+    '<col class="col-version">'
+    '<col class="col-duration">'
+    '<col class="col-size">'
+    '<col class="col-actions">'
+    "</colgroup>"
+)
+
+
+def _format_dashboard_timestamp(iso: str) -> str:
+    if not iso or not str(iso).strip():
+        return "—"
+    raw = str(iso).strip()
+    try:
+        normalized = raw[:-1] + "+00:00" if raw.endswith("Z") else raw
+        dt = datetime.fromisoformat(normalized)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        else:
+            dt = dt.astimezone(timezone.utc)
+        return dt.strftime("%d %b %Y, %H:%M UTC")
+    except ValueError:
+        return raw
+
+
+def _truncate_table_cell(value: str | None, *, data_label: str) -> str:
+    text = (value or "").strip() or "—"
+    escaped = html.escape(text)
+    title_attr = f' title="{html.escape(text)}"' if text != "—" else ""
+    return (
+        f'<td class="cell-truncate" data-label="{data_label}"{title_attr}>{escaped}</td>'
+    )
+
+
 def _find_ipa_file(build_dir: Path) -> Path | None:
     legacy = build_dir / "app.ipa"
     if legacy.is_file():
@@ -1167,10 +1205,15 @@ def render_index(
     logout_html = ""
     if enable_logout:
         logout_html = (
-            '<form class="inline page-header-action" method="post" action="/api/logout">'
-            '<button type="submit" class="btn-primary">Sign out</button>'
+            '<form class="inline" method="post" action="/api/logout">'
+            '<button type="submit" class="btn-secondary">Sign out</button>'
             "</form>"
         )
+
+    generated_label = _format_dashboard_timestamp(data.get("generated_at", ""))
+    header_actions = (
+        f'<div class="page-header-actions">{logout_html}</div>' if logout_html else ""
+    )
 
     sections: list[str] = []
     sections.append(
@@ -1180,10 +1223,14 @@ def render_index(
 <body>
   <main class="page">
     <header class="page-header">
-      <p class="kicker">Builds</p>
-      <h1>iOS OTA Builds</h1>
-      <p class="muted">Generated {html.escape(data.get("generated_at", ""))}</p>
-      {logout_html}
+      <div class="page-header-body">
+        <div class="page-header-main">
+          <p class="kicker">Builds</p>
+          <h1>iOS OTA Builds</h1>
+          <p class="muted page-header-meta">Last updated {html.escape(generated_label)}</p>
+        </div>
+        {header_actions}
+      </div>
     </header>
 """
     )
@@ -1265,6 +1312,7 @@ def render_index(
 
         sections.append(
             '<div class="table-wrap"><table class="builds-table">'
+            f"{_BUILDS_TABLE_COLGROUP}"
             "<thead><tr><th>Build</th><th>Branch</th><th>Commit</th>"
             "<th>Version</th><th>Duration</th><th>Size</th><th>Actions</th></tr></thead><tbody>"
         )
@@ -1323,9 +1371,9 @@ def render_index(
             sections.append(
                 f"<tr{row_class}>"
                 f"<td>{build_cell}</td>"
-                f'<td data-label="Branch">{html.escape(b.get("branch") or "—")}</td>'
-                f'<td data-label="Commit">{html.escape(b.get("commit") or "—")}</td>'
-                f'<td data-label="Version">{version_cell}</td>'
+                f"{_truncate_table_cell(b.get('branch'), data_label='Branch')}"
+                f"{_truncate_table_cell(b.get('commit'), data_label='Commit')}"
+                f'<td class="cell-nowrap" data-label="Version">{version_cell}</td>'
                 f'<td class="meta-cell" data-label="Duration">{duration_cell}</td>'
                 f'<td class="meta-cell" data-label="Size">{size_cell}</td>'
                 f"<td>{actions}</td></tr>"

@@ -149,6 +149,33 @@ def css_labels() -> str:
   border-bottom: 1px solid var(--border-strong);
 }
 
+.page-header-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.page-header-main {
+  min-width: 0;
+}
+
+.page-header-actions {
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+.page-header-meta {
+  margin-top: .15rem;
+}
+
+@media (max-width: 720px) {
+  .page-header-actions {
+    width: 100%;
+  }
+}
+
 .empty-state {
   margin: 0;
   padding: 1.25rem 1.5rem;
@@ -193,6 +220,25 @@ def css_buttons() -> str:
 }
 
 .btn-danger:hover { background: var(--btn-danger-hover); }
+
+.btn-secondary {
+  display: inline-block;
+  padding: .4rem .85rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+  font-size: .85rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-secondary:hover {
+  background: var(--surface-muted);
+  color: var(--text);
+}
 
 .btn-primary.block {
   display: block;
@@ -540,9 +586,18 @@ def css_table() -> str:
 
 table.builds-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: .9rem;
 }
+
+col.col-build { width: 20%; }
+col.col-branch { width: 24%; }
+col.col-commit { width: 14%; }
+col.col-version { width: 12%; }
+col.col-duration { width: 10%; }
+col.col-size { width: 8%; }
+col.col-actions { width: 12%; }
 
 table.builds-table th {
   padding: .65rem 1.25rem;
@@ -560,6 +615,17 @@ table.builds-table td {
   padding: .75rem 1.25rem;
   border-bottom: 1px solid var(--border-subtle);
   vertical-align: top;
+}
+
+table.builds-table td.cell-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 0;
+}
+
+table.builds-table td.cell-nowrap {
+  white-space: nowrap;
 }
 
 table.builds-table tbody tr:last-child td { border-bottom: none; }
@@ -595,7 +661,7 @@ table.builds-table tbody tr.build-row-failed:hover td {
 
 .badge-group {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: .35rem;
 }
 
