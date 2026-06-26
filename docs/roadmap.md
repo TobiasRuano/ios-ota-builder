@@ -60,7 +60,7 @@ flowchart LR
 | ID | Feature | Phase | Priority | Effort | Status | Spec |
 |----|---------|-------|----------|--------|--------|------|
 | F01 | Rich install page | 3 | P1 | M | Planned | [F01](roadmap-features.md#f01) |
-| F02 | QR code on install page | 1 | P0 | S | Planned | [F02](roadmap-features.md#f02) |
+| F02 | QR code on install page | 1 | P0 | S | In Progress | [F02](roadmap-features.md#f02) |
 | F03 | `/latest/<project-id>` redirect | 1 | P0 | S | Planned | [F03](roadmap-features.md#f03) |
 | F04 | App icon from archive | 3 | P1 | M | Planned | [F04](roadmap-features.md#f04) |
 | F05 | Auto release notes | 3 | P2 | M | Planned | [F05](roadmap-features.md#f05) |
@@ -70,7 +70,7 @@ flowchart LR
 | F09 | Mobile-friendly dashboard layout | 2 | P2 | M | Planned | [F09](roadmap-features.md#f09) |
 | F10 | Commit links via `repo_url` | 2 | P2 | S | Planned | [F10](roadmap-features.md#f10) |
 | F11 | Dark mode | 2 | P3 | S | Planned | [F11](roadmap-features.md#f11) |
-| F12 | Auto-increment build number | 1 | P0 | M | Planned | [F12](roadmap-features.md#f12) |
+| F12 | Auto-increment build number | 1 | P0 | M | Done | [F12](roadmap-features.md#f12) |
 | F13 | Dirty git warning | 4 | P2 | S | Planned | [F13](roadmap-features.md#f13) |
 | F14 | Per-project build lock | 4 | P2 | S | Planned | [F14](roadmap-features.md#f14) |
 | F15 | Build completion notifications | 1 | P1 | S | Planned | [F15](roadmap-features.md#f15) |
@@ -97,7 +97,7 @@ flowchart LR
 
 Start here for maximum impact with minimal risk:
 
-1. **F12** — Auto-increment build number (see spec; draft may exist on `feature/auto-increment-build-number`)
+1. ~~**F12** — Auto-increment build number~~ ✅ Done
 2. **F02** — QR code + basic metadata on install page
 3. **F03** — `/latest/<project-id>` redirect
 4. **F06** — Copy-to-clipboard on dashboard

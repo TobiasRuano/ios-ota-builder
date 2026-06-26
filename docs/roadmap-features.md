@@ -90,7 +90,7 @@ Some older builds on disk may have legacy `install.html` without the new theme. 
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | In Progress |
 | **Priority** | P0 |
 | **Effort** | S |
 | **Phase** | 1 |
@@ -123,6 +123,114 @@ None.
 
 **Notes**  
 Do not QR-encode raw IPA URLs for install — use the `install.html` or manifest URL so Safari handles OTA correctly.
+
+#### Implementation plan (F02)
+
+**Goal:** Desktop users scan a QR on `install.html` to open the authenticated install page on iPhone — no CDN, no pip deps.
+
+**Current state** (`tools/generate_manifest.py`):
+
+- `build_install_html()` renders a minimal card: title, Safari hint, Install button (`itms-services://`), IPA link.
+- URLs are built with `with_access_token()` from `auth_urls.py` — token already appended correctly.
+- `install.html` uses `base_head(..., narrow=True)` and `.install-card` from `ui_theme.py`.
+
+**URL to encode in the QR**
+
+Use the **install page URL** (not `itms-services://`, not raw IPA):
+
+```
+{base_url}/{project_id}/{build_dir_name}/install.html?token=...
+```
+
+This matches what testers need: open Safari → tap Install. The iPhone camera opens the page; the existing Install button triggers OTA.
+
+Compute in `generate_manifest.py` the same way as `ipa_url` / `manifest_url`:
+
+```python
+install_page_url = with_access_token(f"{base}/{rel}/install.html", token)
+```
+
+**New module: `tools/qr_svg.py`**
+
+Pure-Python QR encoder → inline SVG string (no network, no `qrcode` pip package).
+
+| Function | Responsibility |
+|----------|----------------|
+| `qr_matrix(data: str) -> list[list[bool]]` | Encode payload (UTF-8); start with **QR Version 1, ECC level M** (sufficient for ~200-char URLs with token). |
+| `matrix_to_svg(matrix, *, module_px=4, quiet_zone=4) -> str` | Render modules as `<rect>` elements inside `<svg viewBox="...">`. |
+
+Implementation options (pick one in code):
+
+1. **Minimal from scratch** — implement QR Model 2 for byte mode, versions 1–4 only (covers typical OTA URLs). Largest code but zero deps.
+2. **Stdlib-only shortcut** — if a tiny existing in-repo pattern exists, reuse; otherwise option 1.
+
+**Changes to `generate_manifest.py`**
+
+1. Import `qr_svg` (or inline a thin wrapper).
+2. Extend `build_install_html()` signature with `install_page_url: str`.
+3. Generate `qr_svg_html = matrix_to_svg(qr_matrix(install_page_url))` once.
+4. Insert markup **above** the Install button:
+
+```html
+<div class="install-qr" aria-hidden="true">
+  {qr_svg_html}
+  <p class="muted">Scan with iPhone camera</p>
+</div>
+```
+
+5. No new CLI args — `install_page_url` is derived inside `main()` from existing args.
+
+**Changes to `tools/ui_theme.py`**
+
+Add CSS in `css_cards()` (or new `css_install_qr()` included from `css_all`):
+
+```css
+.install-qr {
+  display: none;           /* hidden on phone (user is already on device) */
+  text-align: center;
+  margin-bottom: 1.25rem;
+}
+.install-qr svg {
+  display: block;
+  margin: 0 auto;
+  max-width: 200px;
+  height: auto;
+}
+@media (min-width: 600px) {
+  .install-qr { display: block; }
+}
+```
+
+Spec says `min-width: 600px` — matches roadmap acceptance criteria.
+
+**Pipeline / shell**
+
+No changes to `agent_build_ota.sh` — all logic stays in the manifest generator.
+
+**Testing checklist**
+
+| Step | Check |
+|------|-------|
+| Unit | `qr_svg.py`: known string → stable matrix dimensions; round-trip decode with phone or online verifier |
+| Unit | URL with `?token=abc&foo=bar` encodes without double-encoding |
+| Integration | Run `generate_manifest.py` with fixture args → `install.html` contains `<svg` and token in neither double-encoded nor broken |
+| Manual | Open `install.html` on Mac Safari → QR visible; on iPhone Safari → QR hidden, Install works |
+| Manual | Scan QR → opens install page with valid token → Install button works |
+
+**Risks / edge cases**
+
+| Risk | Mitigation |
+|------|------------|
+| URL too long for QR v1 | Bump to v2/v3 dynamically based on payload length |
+| Special chars in token | QR byte mode handles UTF-8; do not pre-`quote()` the full URL for QR (only `itms-services` manifest URL needs `quote`) |
+| Legacy builds | Old `install.html` files unchanged; only new builds get QR |
+
+**Estimated touch list**
+
+- `tools/qr_svg.py` (new)
+- `tools/generate_manifest.py` (embed QR + CSS hook)
+- `tools/ui_theme.py` (`.install-qr` responsive styles)
+- `docs/roadmap.md` / `docs/roadmap-features.md` (status → Done when shipped)
 
 ---
 
@@ -500,7 +608,7 @@ None.
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P0 |
 | **Effort** | M |
 | **Phase** | 1 |
@@ -535,11 +643,11 @@ Use a portable advisory lock (e.g. atomic `mkdir` on a lock directory, as in the
 
 **Acceptance criteria**
 
-- [ ] Each successful build has a strictly increasing integer `CFBundleVersion`
-- [ ] Concurrent builds serialize counter updates (portable lock, no external `flock` binary)
-- [ ] Counter revalidates against OTA `summary.json` history
-- [ ] Non-integer bundle version fails with clear error
-- [ ] Documented in SETUP.md as intentional pipeline side effect
+- [x] Each successful build has a strictly increasing integer `CFBundleVersion`
+- [x] Concurrent builds serialize counter updates (portable lock, no external `flock` binary)
+- [x] Counter revalidates against OTA `summary.json` history
+- [x] Non-integer bundle version fails with clear error
+- [x] Documented in SETUP.md as intentional pipeline side effect
 
 **Notes**  
 This is the only planned feature that touches project source (build number only), contradicting the general “pipeline does not modify source” rule. When implementing, update [`README.md`](../README.md) and [`docs/AGENT_INSTRUCTIONS.md`](AGENT_INSTRUCTIONS.md) to document the exception. Coordinate with F13 so `OTA_FAIL_ON_DIRTY` does not block builds after an auto-increment bump.
