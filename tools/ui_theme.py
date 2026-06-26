@@ -487,6 +487,34 @@ def css_cards() -> str:
   word-break: break-word;
 }
 
+.build-notes {
+  margin-top: .5rem;
+  font-size: .82rem;
+}
+
+.build-notes summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-weight: 500;
+  user-select: none;
+}
+
+.build-notes summary:hover {
+  color: var(--text);
+}
+
+.build-notes-body {
+  margin: .35rem 0 0;
+  padding: .5rem .65rem;
+  border-radius: 6px;
+  background: var(--surface-muted);
+  color: var(--text);
+  font: 400 .75rem "IBM Plex Mono", monospace;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .install-qr {
   display: none;
   margin: 0 0 1.25rem;

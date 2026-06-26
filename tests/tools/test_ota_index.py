@@ -277,3 +277,27 @@ def test_render_index_omits_build_panel_without_token() -> None:
     html = render_index(data, "https://ota.example.com", None, enable_build=False)
     assert 'class="build-panel"' not in html
     assert 'class="btn-build-start"' not in html
+
+
+def test_collect_builds_includes_release_notes(ota_dir: Path, projects_config: dict) -> None:
+    build_dir = write_success_build(ota_dir, "my-app", "06-26-42")
+    summary = json.loads((build_dir / "summary.json").read_text(encoding="utf-8"))
+    summary["release_notes"] = "Fixed login crash"
+    (build_dir / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
+
+    data = collect_builds(ota_dir, projects_config)
+    builds = data["projects"]["my-app"]["builds"]
+    assert builds[0]["release_notes"] == "Fixed login crash"
+
+
+def test_render_index_includes_build_notes_details(ota_dir: Path, projects_config: dict) -> None:
+    build_dir = write_success_build(ota_dir, "my-app", "06-26-42")
+    summary = json.loads((build_dir / "summary.json").read_text(encoding="utf-8"))
+    summary["release_notes"] = "Fixed login crash"
+    (build_dir / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
+
+    data = collect_builds(ota_dir, projects_config)
+    html = render_index(data, "https://ota.example.com", None)
+    assert 'class="build-notes"' in html
+    assert "Fixed login crash" in html
+    assert "Release notes" in html
