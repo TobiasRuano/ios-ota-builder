@@ -215,6 +215,100 @@ check_git_worktree() {
   return 0
 }
 
+_summary_file_mtime() {
+  local summary="$1"
+  stat -f%m "$summary" 2>/dev/null || stat -c %Y "$summary" 2>/dev/null || echo 0
+}
+
+find_previous_successful_commit() {
+  local project_id="$1"
+  local exclude_dir="$2"
+  local builds_root="$OTA_BUILDS_DIR/$project_id"
+  local best_commit=""
+  local best_date=""
+  local best_mtime=0
+
+  if [[ ! -d "$builds_root" ]]; then
+    echo ""
+    return 0
+  fi
+
+  local build_dir summary status commit date_str mtime
+  for build_dir in "$builds_root"/*/; do
+    [[ -d "$build_dir" ]] || continue
+    local name
+    name="$(basename "$build_dir")"
+    [[ "$name" == "$exclude_dir" ]] && continue
+    summary="$build_dir/summary.json"
+    [[ -f "$summary" ]] || continue
+    status="$(jq -r '.status // ""' "$summary" 2>/dev/null || echo "")"
+    [[ "$status" == "success" ]] || continue
+    commit="$(jq -r '.commit // ""' "$summary" 2>/dev/null || echo "")"
+    [[ -z "$commit" || "$commit" == "null" || "$commit" == "unknown" ]] && continue
+
+    date_str="$(jq -r '.date // ""' "$summary" 2>/dev/null || echo "")"
+    mtime="$(_summary_file_mtime "$summary")"
+    if [[ -n "$date_str" && "$date_str" != "null" ]]; then
+      if [[ -z "$best_date" || "$date_str" > "$best_date" ]]; then
+        best_date="$date_str"
+        best_commit="$commit"
+        best_mtime="$mtime"
+      elif [[ "$date_str" == "$best_date" && "$mtime" -gt "$best_mtime" ]]; then
+        best_commit="$commit"
+        best_mtime="$mtime"
+      fi
+    elif [[ "$mtime" -gt "$best_mtime" ]]; then
+      best_commit="$commit"
+      best_mtime="$mtime"
+    fi
+  done
+
+  echo "$best_commit"
+}
+
+collect_git_commits_since() {
+  local repo_path="$1"
+  local from_commit="${2:-}"
+  local max_count="${3:-20}"
+
+  if ! git -C "$repo_path" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if [[ -n "$from_commit" ]]; then
+    git -C "$repo_path" log "${from_commit}..HEAD" --oneline -n "$max_count" 2>/dev/null || true
+  else
+    git -C "$repo_path" log --oneline -n "$max_count" 2>/dev/null || true
+  fi
+}
+
+collect_release_notes() {
+  local repo_path="$1"
+  local project_id="$2"
+  local exclude_build_dir="$3"
+  local prev_commit commits
+
+  if ! git -C "$repo_path" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo ""
+    return 0
+  fi
+
+  prev_commit="$(find_previous_successful_commit "$project_id" "$exclude_build_dir")"
+
+  if [[ -z "$prev_commit" ]]; then
+    echo "Initial build"
+    return 0
+  fi
+
+  if git -C "$repo_path" rev-parse --verify "${prev_commit}^{commit}" >/dev/null 2>&1; then
+    commits="$(collect_git_commits_since "$repo_path" "$prev_commit" 20)"
+  else
+    commits="$(collect_git_commits_since "$repo_path" "" 10)"
+  fi
+
+  printf '%s' "$commits"
+}
+
 make_build_dir() {
   local dir_name date_prefix
   if [[ -n "${OTA_BUILD_NUMBER:-}" ]]; then
@@ -383,6 +477,7 @@ write_summary_json() {
   local ipa_filename="${13:-${IPA_FILENAME:-app.ipa}}"
   local build_label="${14:-${BUILD_LABEL:-}}"
   local icon_path="${15:-}"
+  local release_notes="${16:-${RELEASE_NOTES:-}}"
 
   local summary_file="$BUILD_OUTPUT_DIR/summary.json"
   local now
@@ -410,6 +505,7 @@ write_summary_json() {
     --arg ipa_filename "$ipa_filename" \
     --arg build_label "$build_label" \
     --arg icon_path "$icon_path" \
+    --arg release_notes "$release_notes" \
     '{
       status: $status,
       project: $project,
@@ -431,7 +527,8 @@ write_summary_json() {
       ipa_size_bytes: (if $ipa_size_bytes == 0 then null else $ipa_size_bytes end),
       ipa_filename: (if $ipa_filename == "" then null else $ipa_filename end),
       build_label: (if $build_label == "" then null else $build_label end),
-      icon_path: (if $icon_path == "" then null else $icon_path end)
+      icon_path: (if $icon_path == "" then null else $icon_path end),
+      release_notes: (if $release_notes == "" then null else $release_notes end)
     }' >"$summary_file"
 
   export SUMMARY_FILE="$summary_file"

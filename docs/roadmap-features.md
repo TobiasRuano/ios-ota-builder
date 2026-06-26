@@ -333,7 +333,7 @@ Icon name is read dynamically from `Info.plist` (`CFBundleIconName`, `CFBundleIc
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P2 |
 | **Effort** | M |
 | **Phase** | 3 |
@@ -364,11 +364,11 @@ F23 (changelog) shares git-log logic — implement once, reuse.
 
 **Acceptance criteria**
 
-- [ ] `--notes` overrides auto-generated notes
-- [ ] Auto notes list commits since last successful build for same project
-- [ ] First-ever build shows “Initial build” or empty section
-- [ ] Notes visible on install page
-- [ ] Notes stored in `summary.json`
+- [x] `--notes` overrides auto-generated notes
+- [x] Auto notes list commits since last successful build for same project
+- [x] First-ever build shows “Initial build” or empty section
+- [x] Notes visible on install page
+- [x] Notes stored in `summary.json`
 
 ---
 

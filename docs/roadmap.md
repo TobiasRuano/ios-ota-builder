@@ -63,7 +63,7 @@ flowchart LR
 | F02 | QR code on install page | 1 | P0 | S | Done | [F02](roadmap-features.md#f02) |
 | F03 | `/latest/<project-id>` redirect | 1 | P0 | S | Done | [F03](roadmap-features.md#f03) |
 | F04 | App icon from archive | 3 | P1 | M | Done | [F04](roadmap-features.md#f04) |
-| F05 | Auto release notes | 3 | P2 | M | Planned | [F05](roadmap-features.md#f05) |
+| F05 | Auto release notes | 3 | P2 | M | Done | [F05](roadmap-features.md#f05) |
 | F06 | Copy-to-clipboard links | 1 | P0 | S | Done | [F06](roadmap-features.md#f06) |
 | F07 | Visual badges (Debug/Release, latest) | 1 | P0 | S | Done | [F07](roadmap-features.md#f07) |
 | F08 | Table metadata (size, duration, config) | 2 | P1 | S | Done | [F08](roadmap-features.md#f08) |

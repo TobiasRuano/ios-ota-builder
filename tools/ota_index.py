@@ -345,6 +345,8 @@ def _apply_summary_fields(entry: dict, summary: dict) -> None:
         entry["build_label"] = summary["build_label"]
     if summary.get("configuration"):
         entry["configuration"] = summary["configuration"]
+    if summary.get("release_notes"):
+        entry["release_notes"] = summary["release_notes"]
 
 
 def _apply_icon_fields(entry: dict, build_dir: Path, project_id: str) -> None:
@@ -643,6 +645,19 @@ def _build_failure_actions_menu(
     )
 
 
+def _render_build_notes(build: dict) -> str:
+    notes = build.get("release_notes")
+    if not notes or not str(notes).strip():
+        return ""
+    safe_notes = html.escape(str(notes).strip())
+    return (
+        '<details class="build-notes">'
+        "<summary>Release notes</summary>"
+        f'<pre class="build-notes-body">{safe_notes}</pre>'
+        "</details>"
+    )
+
+
 def _build_badges(build: dict) -> str:
     badges: list[str] = []
     status = build.get("status")
@@ -917,7 +932,8 @@ def render_index(
 
             build_cell = (
                 f'<div class="build-name" title="{full_name}">'
-                f'<span class="build-label">{label}</span>{badges_html}</div>'
+                f'<span class="build-label">{label}</span>{badges_html}'
+                f"{_render_build_notes(b)}</div>"
             )
 
             duration_cell = html.escape(_format_duration(b.get("duration_seconds")))
