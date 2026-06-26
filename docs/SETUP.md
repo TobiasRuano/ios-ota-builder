@@ -132,10 +132,12 @@ Variables in `config/local.env`:
 OTA_KEEP_BUILDS=5      # max per project
 OTA_MAX_AGE_DAYS=7     # max age
 OTA_STATUS_MIN_DISK_MB=5000   # ota-status warns/exits if free space below this (default 5000)
+# OTA_STATUS_PROBE_TUNNEL=0    # set 1 to probe OTA_BASE_URL/health on each dashboard load (F19)
 ```
 
 - Automatic cleanup at the end of each build and daily at 03:00 (`ota-cleanup` LaunchAgent).
 - The dashboard (`dashboard_url` in the build JSON) lists successful builds (with an IPA) and failed builds (with `summary.json` where `status: failure`). Failed rows show a red badge and link to diagnostics and logs — no Install/IPA actions.
+- **Server status panel** (footer on the dashboard): free disk space (GB and % used), server uptime, builds-dir writable flag, and optional tunnel reachability (`OTA_STATUS_PROBE_TUNNEL=1`). Low-disk warning when free space is below `OTA_STATUS_MIN_DISK_MB`. Refreshes on each page load.
 - Failed builds count toward `OTA_KEEP_BUILDS` and `OTA_MAX_AGE_DAYS` like successful builds.
 - **Delete** button on each row: removes from disk and disappears from the list (works from iPhone).
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import json
 import re
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -598,6 +599,117 @@ def _build_badges(build: dict) -> str:
     return f'<div class="badge-group">{"".join(badges)}</div>'
 
 
+def collect_disk_stats(ota_dir: Path, *, min_disk_mb: int = 5000) -> dict:
+    try:
+        ota_dir.mkdir(parents=True, exist_ok=True)
+        usage = shutil.disk_usage(ota_dir)
+    except OSError:
+        return {
+            "free_gb": "—",
+            "free_mb": 0,
+            "used_percent": None,
+            "ok": False,
+            "threshold_mb": min_disk_mb,
+            "unavailable": True,
+        }
+
+    free_mb = usage.free // (1024 * 1024)
+    total = usage.total
+    used_percent = round((total - usage.free) / total * 100, 1) if total else 0.0
+    return {
+        "free_gb": f"{free_mb / 1024:.1f}",
+        "free_mb": free_mb,
+        "used_percent": used_percent,
+        "ok": free_mb >= min_disk_mb,
+        "threshold_mb": min_disk_mb,
+    }
+
+
+def format_uptime(seconds: int) -> str:
+    if seconds < 0:
+        seconds = 0
+    days, rem = divmod(seconds, 86400)
+    hours, rem = divmod(rem, 3600)
+    minutes, _ = divmod(rem, 60)
+    parts: list[str] = []
+    if days:
+        parts.append(f"{days}d")
+    if hours:
+        parts.append(f"{hours}h")
+    if minutes or not parts:
+        parts.append(f"{minutes}m")
+    return " ".join(parts)
+
+
+def _status_dot(*, ok: bool) -> str:
+    dot_class = "status-dot" if ok else "status-dot status-dot-warning"
+    return f'<span class="{dot_class}" aria-hidden="true"></span>'
+
+
+def render_status_panel(status: dict) -> str:
+    disk = status.get("disk", {})
+    threshold_mb = disk.get("threshold_mb", 5000)
+    panel_class = "status-panel"
+    if not disk.get("ok", True):
+        panel_class += " status-panel-warning"
+
+    rows: list[str] = []
+
+    if disk.get("unavailable"):
+        disk_text = "Disk: unavailable"
+        disk_ok = False
+    else:
+        used = disk.get("used_percent")
+        used_suffix = f" ({used:g}% used)" if used is not None else ""
+        disk_text = f"Disk: {html.escape(str(disk.get('free_gb', '—')))} GB free{used_suffix}"
+        disk_ok = bool(disk.get("ok", True))
+    rows.append(
+        f'<div class="status-panel-item">{_status_dot(ok=disk_ok)}'
+        f'<span>{disk_text}</span></div>'
+    )
+
+    uptime_seconds = status.get("uptime_seconds")
+    if uptime_seconds is not None:
+        uptime_label = html.escape(format_uptime(int(uptime_seconds)))
+        rows.append(
+            f'<div class="status-panel-item">{_status_dot(ok=True)}'
+            f'<span>Uptime: {uptime_label}</span></div>'
+        )
+
+    writable = status.get("ota_builds_dir_writable")
+    if writable is not None:
+        writable_ok = bool(writable)
+        writable_text = "Builds dir: writable" if writable_ok else "Builds dir: not writable"
+        rows.append(
+            f'<div class="status-panel-item">{_status_dot(ok=writable_ok)}'
+            f'<span>{writable_text}</span></div>'
+        )
+
+    tunnel = status.get("tunnel")
+    if tunnel is not None:
+        tunnel_ok = bool(tunnel.get("reachable"))
+        tunnel_text = "Tunnel: reachable" if tunnel_ok else "Tunnel: unreachable"
+        rows.append(
+            f'<div class="status-panel-item">{_status_dot(ok=tunnel_ok)}'
+            f'<span>{tunnel_text}</span></div>'
+        )
+
+    warning_html = ""
+    if not disk.get("ok", True) and not disk.get("unavailable"):
+        warning_html = (
+            f'<p class="status-panel-alert">Low disk space — below '
+            f"{html.escape(str(threshold_mb))} MB threshold</p>"
+        )
+
+    return (
+        f'<footer class="{panel_class}">'
+        '<p class="status-panel-title">Server status</p>'
+        f'<div class="status-panel-grid">{"".join(rows)}</div>'
+        f"{warning_html}"
+        "</footer>"
+    )
+
+
 def _project_icon_build(builds: list[dict]) -> dict | None:
     """Return the most recent build that has an extractable app icon."""
     for build in builds:
@@ -612,6 +724,9 @@ def render_index(
     access_token: str | None = None,
     *,
     enable_delete: bool = True,
+    ota_dir: Path | None = None,
+    server_status: dict | None = None,
+    min_disk_mb: int = 5000,
 ) -> str:
     base = base_url.rstrip("/")
     token = access_token or ""
@@ -735,6 +850,12 @@ def render_index(
                 f"<td>{actions}</td></tr>"
             )
         sections.append("</tbody></table></div></section>")
+
+    panel_status = server_status
+    if panel_status is None and ota_dir is not None:
+        panel_status = {"disk": collect_disk_stats(ota_dir, min_disk_mb=min_disk_mb)}
+    if panel_status is not None:
+        sections.append(render_status_panel(panel_status))
 
     sections.append(f"</main>\n{_COPY_SCRIPT}\n{_DROPDOWN_SCRIPT}\n</body></html>")
     return "\n".join(sections)

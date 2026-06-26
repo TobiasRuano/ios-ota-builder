@@ -625,6 +625,56 @@ table.builds-table tbody tr.build-row-failed:hover td {
 """
 
 
+def css_status_panel() -> str:
+    return """
+.status-panel {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-strong);
+}
+
+.status-panel-title {
+  margin: 0 0 .85rem;
+  color: var(--muted);
+  font: 500 .82rem "IBM Plex Mono", monospace;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.status-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: .65rem 1.25rem;
+}
+
+.status-panel-item {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  font: 500 .85rem "IBM Plex Mono", monospace;
+  color: var(--text);
+}
+
+.status-dot-warning {
+  background: var(--danger);
+}
+
+.status-panel-warning {
+  padding: 1rem 1.1rem;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--badge-failed-bg) 45%, transparent);
+}
+
+.status-panel-alert {
+  margin: .85rem 0 0;
+  color: var(--danger);
+  font-size: .85rem;
+  font-weight: 500;
+}
+"""
+
+
 def css_all(*, narrow: bool = False) -> str:
     return "\n".join(
         [
@@ -634,6 +684,7 @@ def css_all(*, narrow: bool = False) -> str:
             css_buttons(),
             css_cards(),
             css_table(),
+            css_status_panel(),
         ]
     )
 

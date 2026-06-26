@@ -900,7 +900,7 @@ Do not expose secrets or build metadata on `/health`.
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P2 |
 | **Effort** | M |
 | **Phase** | 5 |
@@ -915,22 +915,23 @@ Footer or sidebar on dashboard showing:
 - Server version / uptime (from `/health` internal call or inline in index render)
 - Optional: tunnel reachability probe via `GET` or `HEAD` to `OTA_BASE_URL/health` (must match F18)
 
-Compute disk stats in `ota_index.py` at render time (no background daemon). Low-disk warning uses `OTA_MIN_DISK_MB` from `config/local.env` (default **5000**, same as `check_disk_space` in `agent_build_ota.sh`).
+Compute disk stats in `ota_index.py` at render time (no background daemon). Low-disk warning uses `OTA_STATUS_MIN_DISK_MB` from `config/local.env` (default **5000**, same as `ota-status` and `check_disk_space` in `agent_build_ota.sh`). Optional tunnel probe via `OTA_STATUS_PROBE_TUNNEL=1`.
 
 **Files likely touched**
 
 - `tools/ota_index.py`
+- `tools/ui_theme.py` — status panel CSS
 - `server/static_server.py` — pass env paths into renderer
-- `config/local.env.example` — document `OTA_MIN_DISK_MB`
+- `config/local.env.example` — document `OTA_STATUS_MIN_DISK_MB`, `OTA_STATUS_PROBE_TUNNEL`
 
 **Dependencies**  
 F18 recommended first.
 
 **Acceptance criteria**
 
-- [ ] Dashboard shows free disk GB and % used
-- [ ] Low disk warning when below `OTA_MIN_DISK_MB` threshold
-- [ ] Panel updates on each page load (dynamic index)
+- [x] Dashboard shows free disk GB and % used
+- [x] Low disk warning when below `OTA_STATUS_MIN_DISK_MB` threshold
+- [x] Panel updates on each page load (dynamic index)
 
 ---
 
