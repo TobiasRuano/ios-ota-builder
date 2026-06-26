@@ -821,6 +821,14 @@ table.builds-table tbody tr.build-row-failed:hover td {
     color: var(--text);
   }
 
+  table.builds-table td.cell-truncate {
+    max-width: none;
+    overflow: visible;
+    white-space: normal;
+    text-overflow: clip;
+    word-break: break-word;
+  }
+
   table.builds-table .build-name {
     flex-direction: column;
     align-items: flex-start;
