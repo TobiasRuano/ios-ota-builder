@@ -6,7 +6,7 @@ You are building an iOS app that will be installed over-the-air (Ad Hoc) on an i
 
 1. **Never run `xcodebuild` directly.** Always use the pipeline entry point.
 2. **Pass `project-id`, never a repo path.** The pipeline resolves paths from `config/projects.json`.
-3. **The pipeline does not modify source code.** You fix code; the pipeline builds and publishes.
+3. **The pipeline does not modify the iOS app repo.** You fix code in the app project; the pipeline builds and publishes. When `auto_increment_build` is enabled for a project in `config/projects.json`, the pipeline assigns the next `CFBundleVersion` via an `xcodebuild` override (counter stored in `config/build_counters.json`).
 4. **Maximum 3 build attempts** per task. After each failure, read `diagnostics.md` in the build output folder.
 5. **Return `install_url` and `dashboard_url`** from the JSON output when the build succeeds.
    - `install_url` — for the user to install this build on iPhone (Safari).
@@ -64,9 +64,13 @@ Return install_url + dashboard_url to user
   "install_url": "https://ota.example.com/my-app/2026-06-25_2015_main/install.html?token=...",
   "dashboard_url": "https://ota.example.com/?token=...",
   "manifest_url": "https://...",
-  "ipa_url": "https://..."
+  "ipa_url": "https://...",
+  "version": "1.2.0",
+  "build_number": "42"
 }
 ```
+
+When `auto_increment_build` is enabled, `build_number` reflects the overridden `CFBundleVersion` for that OTA build.
 
 ## Failure output
 
@@ -105,5 +109,7 @@ The iPhone UDID must be registered in the Ad Hoc provisioning profile.
 
 - Private secrets: `config/local.env` (see `./scripts/setup.sh`)
 - App registry: `config/projects.json` (copy from `projects.json.example`)
+- Per-project build counters: `config/build_counters.json` (created automatically when `auto_increment_build` is enabled). The next build number is **reserved during `resolve`** (after SPM resolution), not after publish.
+- `auto_increment_build` requires integer `CFBundleVersion` values (e.g. `42`, not `201.4`). Non-integer build numbers cause the pipeline to fail with a clear error.
 
 **Important:** `install_url` and `dashboard_url` include the access token. Treat them like passwords.

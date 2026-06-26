@@ -74,6 +74,17 @@ parse_args() {
 
 cleanup_on_fail() {
   local ec=$?
+  if [[ -z "${OTA_BUILD_NUMBER:-}" && -n "${BUILD_OUTPUT_DIR:-}" && -f "$BUILD_OUTPUT_DIR/.ota_build_number" ]]; then
+    OTA_BUILD_NUMBER="$(<"$BUILD_OUTPUT_DIR/.ota_build_number")"
+    export OTA_BUILD_NUMBER
+  fi
+  if [[ "${BUILD_PUBLISHED:-false}" == "true" ]]; then
+    print_result_json >&2 || true
+    return 0
+  fi
+  if [[ "${AUTO_INCREMENT_BUILD:-false}" == "true" && -n "${OTA_BUILD_NUMBER:-}" ]]; then
+    "$OTA_BUILDER_ROOT/scripts/resolve_build_number.sh" rollback || true
+  fi
   if [[ $ec -ne 0 && -n "${BUILD_OUTPUT_DIR:-}" && -d "$BUILD_OUTPUT_DIR" ]]; then
     run_diagnostics "${FAILED_STAGE:-unknown}"
     write_summary_json "failure" "${FAILED_STAGE:-unknown}" "$(($(date +%s) - START_EPOCH))" "" "" "" "${APP_VERSION:-}" "${APP_BUILD:-}" || true
@@ -122,6 +133,19 @@ main() {
   fi
   ARCHIVE_PATH="$BUILD_OUTPUT_DIR/work/app.xcarchive"
 
+  if [[ -f "$BUILD_OUTPUT_DIR/.ota_build_number" ]]; then
+    OTA_BUILD_NUMBER="$(<"$BUILD_OUTPUT_DIR/.ota_build_number")"
+    export OTA_BUILD_NUMBER
+  fi
+
+  read_archive_version "$ARCHIVE_PATH"
+  if [[ -n "${OTA_BUILD_NUMBER:-}" && "$APP_BUILD" != "$OTA_BUILD_NUMBER" ]]; then
+    log_error "Archive CFBundleVersion ($APP_BUILD) does not match reserved build ($OTA_BUILD_NUMBER)."
+    log "Ensure Info.plist sets CFBundleVersion to \$(CURRENT_PROJECT_VERSION)."
+    FAILED_STAGE="archive"
+    exit "$EC_ARCHIVE"
+  fi
+
   # Export IPA
   if ! "$OTA_BUILDER_ROOT/scripts/export_ipa.sh" "$ARCHIVE_PATH" "$BUILD_OUTPUT_DIR"; then
     FAILED_STAGE="export"
@@ -153,6 +177,8 @@ main() {
 
   DURATION=$(($(date +%s) - START_EPOCH))
   write_summary_json "success" "" "$DURATION" "$INSTALL_URL" "$MANIFEST_URL" "$IPA_URL" "$APP_VERSION" "$APP_BUILD" "$DASHBOARD_URL"
+  BUILD_PUBLISHED=true
+  export BUILD_PUBLISHED
 
   if ! "$OTA_BUILDER_ROOT/scripts/cleanup_ota.sh" >&2; then
     FAILED_STAGE="index"

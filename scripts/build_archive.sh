@@ -39,19 +39,43 @@ if [[ $RESOLVE_EC -ne 0 ]]; then
 fi
 log "Dependencies resolved."
 
+if [[ "${AUTO_INCREMENT_BUILD:-false}" == "true" ]]; then
+  OTA_BUILD_NUMBER="$("$OTA_BUILDER_ROOT/scripts/resolve_build_number.sh" resolve)"
+  export OTA_BUILD_NUMBER
+  printf '%s\n' "$OTA_BUILD_NUMBER" >"$BUILD_OUTPUT_DIR/.ota_build_number"
+fi
+
 log "Archiving $SCHEME ($CONFIGURATION)..."
+if [[ -n "${OTA_BUILD_NUMBER:-}" ]]; then
+  log "Using build number override: $OTA_BUILD_NUMBER"
+fi
 set +e
-"$XCODEBUILD" archive \
-  -project "$PROJECT_FILE" \
-  -scheme "$SCHEME" \
-  -configuration "$CONFIGURATION" \
-  -archivePath "$ARCHIVE_PATH" \
-  -destination 'generic/platform=iOS' \
-  -derivedDataPath "$DERIVED_DATA" \
-  DEVELOPMENT_TEAM="$TEAM_ID" \
-  CODE_SIGN_STYLE=Automatic \
-  -allowProvisioningUpdates \
-  >>"$ARCHIVE_LOG" 2>&1
+if [[ -n "${OTA_BUILD_NUMBER:-}" ]]; then
+  "$XCODEBUILD" archive \
+    -project "$PROJECT_FILE" \
+    -scheme "$SCHEME" \
+    -configuration "$CONFIGURATION" \
+    -archivePath "$ARCHIVE_PATH" \
+    -destination 'generic/platform=iOS' \
+    -derivedDataPath "$DERIVED_DATA" \
+    DEVELOPMENT_TEAM="$TEAM_ID" \
+    CODE_SIGN_STYLE=Automatic \
+    CURRENT_PROJECT_VERSION="$OTA_BUILD_NUMBER" \
+    -allowProvisioningUpdates \
+    >>"$ARCHIVE_LOG" 2>&1
+else
+  "$XCODEBUILD" archive \
+    -project "$PROJECT_FILE" \
+    -scheme "$SCHEME" \
+    -configuration "$CONFIGURATION" \
+    -archivePath "$ARCHIVE_PATH" \
+    -destination 'generic/platform=iOS' \
+    -derivedDataPath "$DERIVED_DATA" \
+    DEVELOPMENT_TEAM="$TEAM_ID" \
+    CODE_SIGN_STYLE=Automatic \
+    -allowProvisioningUpdates \
+    >>"$ARCHIVE_LOG" 2>&1
+fi
 ARCHIVE_EC=$?
 set -e
 
