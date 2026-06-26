@@ -288,7 +288,7 @@ Follow the same pattern as existing dynamic routes (`/`, `/builds.json`).
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P1 |
 | **Effort** | M |
 | **Phase** | 3 |
@@ -318,13 +318,13 @@ None.
 
 **Acceptance criteria**
 
-- [ ] `icon.png` exists in build output after successful archive
-- [ ] Install page shows app icon above title (image URL includes auth token)
-- [ ] Dashboard shows icon next to project name or latest build (authenticated URL)
-- [ ] Graceful fallback if icon extraction fails (build still succeeds)
+- [x] `icon.png` exists in build output after successful archive
+- [x] Install page shows app icon above title (image URL includes auth token)
+- [x] Dashboard shows icon next to project name or latest build (authenticated URL)
+- [x] Graceful fallback if icon extraction fails (build still succeeds)
 
 **Notes**  
-Widget extensions and asset catalogs vary; start with Apps that use standard `AppIcon.appiconset` in the main target.
+Icon name is read dynamically from `Info.plist` (`CFBundleIconName`, `CFBundleIconFiles`) — not hardcoded per project. Supports standard `AppIcon.appiconset`, Icon Composer (`.icon` → `Assets.car` via `iconutil`), and loose PNG fallbacks named after the icon basename.
 
 ---
 

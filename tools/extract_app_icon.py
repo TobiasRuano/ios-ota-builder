@@ -68,6 +68,30 @@ def read_icon_name(info_plist: Path) -> str:
     return "AppIcon"
 
 
+def read_icon_file_basenames(info_plist: Path) -> list[str]:
+    """Read CFBundleIconFiles basenames from Info.plist (without extension)."""
+    key = "CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconFiles"
+    result = _run(
+        ["/usr/libexec/PlistBuddy", "-c", f"Print {key}", str(info_plist)],
+    )
+    if result is None or result.returncode != 0:
+        return []
+
+    basenames: list[str] = []
+    for line in result.stdout.splitlines():
+        value = line.strip()
+        if value and not value.startswith("Array") and value != "{" and value != "}":
+            basenames.append(value)
+    return basenames
+
+
+def _iconset_output_path(dest: Path) -> Path:
+    """iconutil requires the output path to end with .iconset."""
+    if dest.suffix == ".iconset":
+        return dest
+    return dest.with_name(f"{dest.name}.iconset")
+
+
 def find_assets_car(app_bundle: Path) -> Path | None:
     candidates = [
         app_bundle / "Assets.car",
@@ -134,17 +158,18 @@ def _resize_to_png(source: Path, output: Path, size: int = 180) -> bool:
 def _iconutil_iconset(car_path: Path, icon_name: str, dest_dir: Path) -> Path | None:
     if not shutil.which("iconutil"):
         return None
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    if any(dest_dir.iterdir()):
-        for child in dest_dir.iterdir():
-            if child.is_dir():
-                shutil.rmtree(child)
-            else:
-                child.unlink()
-    result = _run(["iconutil", "-c", "iconset", str(car_path), icon_name, "-o", str(dest_dir)])
+    iconset_path = _iconset_output_path(dest_dir)
+    if iconset_path.exists():
+        shutil.rmtree(iconset_path)
+    iconset_path.parent.mkdir(parents=True, exist_ok=True)
+    result = _run(
+        ["iconutil", "-c", "iconset", str(car_path), icon_name, "-o", str(iconset_path)],
+    )
     if result is None or result.returncode != 0:
+        detail = result.stderr.strip() if result and result.stderr else "iconutil failed"
+        _warn(f"iconutil ({icon_name}): {detail}")
         return None
-    pngs = list(dest_dir.rglob("*.png"))
+    pngs = list(iconset_path.rglob("*.png"))
     return _largest_png(pngs)
 
 
@@ -228,10 +253,27 @@ def _extract_from_assets_car(car_path: Path, icon_name: str, tmp_dir: Path) -> P
     return None
 
 
-def _extract_loose_pngs(app_bundle: Path) -> Path | None:
-    patterns = ("AppIcon*.png", "Icon*.png", "icon.png")
+def _loose_png_patterns(info_plist: Path, icon_name: str) -> tuple[str, ...]:
+    names: list[str] = []
+    seen: set[str] = set()
+
+    def add(name: str) -> None:
+        if name and name not in seen:
+            seen.add(name)
+            names.append(name)
+
+    add(icon_name)
+    for basename in read_icon_file_basenames(info_plist):
+        add(basename)
+
+    patterns: list[str] = [f"{name}*.png" for name in names]
+    patterns.extend(("AppIcon*.png", "Icon*.png", "icon.png"))
+    return tuple(patterns)
+
+
+def _extract_loose_pngs(app_bundle: Path, info_plist: Path, icon_name: str) -> Path | None:
     candidates: list[Path] = []
-    for pattern in patterns:
+    for pattern in _loose_png_patterns(info_plist, icon_name):
         candidates.extend(app_bundle.glob(pattern))
     return _largest_png(candidates)
 
@@ -252,9 +294,12 @@ def extract_icon(archive_path: Path, output: Path) -> str | None:
         if car_path is not None:
             png = _extract_from_assets_car(car_path, icon_name, tmp_dir)
             if png is not None and _resize_to_png(png, output):
-                return "iconutil" if png.parent.name == "iconset" else "assetutil"
+                parent = png.parent
+                if parent.suffix == ".iconset" or parent.name.startswith("iconset"):
+                    return "iconutil"
+                return "assetutil"
 
-        png = _extract_loose_pngs(app_bundle)
+        png = _extract_loose_pngs(app_bundle, info_plist, icon_name)
         if png is not None and _resize_to_png(png, output):
             return "loose-png"
 
