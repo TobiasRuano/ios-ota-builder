@@ -786,6 +786,55 @@ def css_status_panel() -> str:
 """
 
 
+def css_forms() -> str:
+    return """
+.login-card {
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.login-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.login-form label {
+  display: grid;
+  gap: .35rem;
+  font-size: .9rem;
+  font-weight: 500;
+}
+
+.login-form input {
+  width: 100%;
+  padding: .55rem .75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-muted);
+  color: var(--text);
+  font: inherit;
+}
+
+.login-form input:focus {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.login-error {
+  margin: 0 0 1rem;
+  padding: .75rem 1rem;
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  border-radius: 6px;
+  font-size: .9rem;
+}
+"""
+
+
 def css_all(*, narrow: bool = False) -> str:
     return "\n".join(
         [
@@ -793,6 +842,7 @@ def css_all(*, narrow: bool = False) -> str:
             css_layout(narrow=narrow),
             css_labels(),
             css_buttons(),
+            css_forms(),
             css_cards(),
             css_table(),
             css_status_panel(),
@@ -827,8 +877,44 @@ def unauthorized_html() -> str:
     <header class="page-header">
       <p class="kicker">Access</p>
       <h1>401 Unauthorized</h1>
-      <p class="muted">Access requires a valid token.</p>
+      <p class="muted">Access requires a valid token or an active login session.</p>
+      <p class="muted"><a class="link-accent" href="/login">Sign in</a></p>
     </header>
+  </main>
+</body>
+</html>
+"""
+
+
+def login_html(*, next_path: str = "/", error: str | None = None) -> str:
+    safe_next = html.escape(next_path)
+    error_block = ""
+    if error:
+        error_block = f'<p class="login-error" role="alert">{html.escape(error)}</p>\n'
+    return f"""<!DOCTYPE html>
+<html lang="en">
+{base_head("Sign in", narrow=True)}
+<body>
+  <main class="page">
+    <header class="page-header">
+      <p class="kicker">Access</p>
+      <h1>Sign in</h1>
+      <p class="muted">Use your admin credentials to access builds and downloads.</p>
+    </header>
+    <div class="login-card">
+      {error_block}<form class="login-form" method="post" action="/api/login">
+        <input type="hidden" name="next" value="{safe_next}">
+        <label>
+          Username
+          <input name="username" type="text" autocomplete="username" required>
+        </label>
+        <label>
+          Password
+          <input name="password" type="password" autocomplete="current-password" required>
+        </label>
+        <button class="btn-primary block" type="submit">Sign in</button>
+      </form>
+    </div>
   </main>
 </body>
 </html>
