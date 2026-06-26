@@ -575,7 +575,7 @@ None.
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P3 |
 | **Effort** | S |
 | **Phase** | 2 |
@@ -588,17 +588,18 @@ Add `@media (prefers-color-scheme: dark)` overrides in `ui_theme.py` for CSS var
 
 **Files likely touched**
 
-- `tools/ui_theme.py` only
+- `tools/ui_theme.py` — dark tokens, hover variables, dual `theme-color` meta
+- `tools/qr_svg.py` — QR fills use `var(--surface)` / `var(--text)` for dark-mode contrast
 
 **Dependencies**  
 None.
 
 **Acceptance criteria**
 
-- [ ] Dashboard respects system dark mode on macOS and iOS
-- [ ] Install page respects system dark mode
-- [ ] Contrast remains readable (WCAG AA target for body text)
-- [ ] `prefers-reduced-motion` behavior preserved
+- [x] Dashboard respects system dark mode on macOS and iOS
+- [x] Install page respects system dark mode
+- [x] Contrast remains readable (WCAG AA target for body text)
+- [x] `prefers-reduced-motion` behavior preserved
 
 ---
 

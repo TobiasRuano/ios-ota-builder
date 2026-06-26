@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 
 THEME_COLOR = "#f7f9fc"
+THEME_COLOR_DARK = "#0f1419"
 FONT_URL = (
     "https://fonts.googleapis.com/css2?"
     "family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap"
@@ -14,7 +15,7 @@ FONT_URL = (
 def css_reset_and_tokens() -> str:
     return """
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   --background: #f7f9fc;
@@ -26,10 +27,32 @@ def css_reset_and_tokens() -> str:
   --border-strong: #aeb9ca;
   --border-subtle: #dce2eb;
   --accent: #3568d4;
+  --accent-hover: #2d57b8;
   --success: #378564;
   --status-active: #5ebc93;
   --danger: #c94a4a;
+  --danger-hover: #a83d3d;
   --focus: #3568d4;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0f1419;
+    --surface: #1a2230;
+    --surface-muted: #151c28;
+    --text: #e8ecf2;
+    --muted: #9aa3b5;
+    --border: #2a3548;
+    --border-strong: #3d4d66;
+    --border-subtle: #232d3d;
+    --accent: #5b8def;
+    --accent-hover: #4a7ad4;
+    --success: #5ebc93;
+    --status-active: #6fd4a8;
+    --danger: #e06a6a;
+    --danger-hover: #c94a4a;
+    --focus: #5b8def;
+  }
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -138,14 +161,14 @@ def css_buttons() -> str:
   color: #fff;
 }
 
-.btn-primary:hover { background: #2d57b8; color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); color: #fff; }
 
 .btn-danger {
   background: var(--danger);
   color: #fff;
 }
 
-.btn-danger:hover { background: #a83d3d; }
+.btn-danger:hover { background: var(--danger-hover); }
 
 .btn-primary.block {
   display: block;
@@ -311,6 +334,7 @@ def base_head(title: str, *, narrow: bool = False) -> str:
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
   <meta name="theme-color" content="{THEME_COLOR}">
+  <meta name="theme-color" content="{THEME_COLOR_DARK}" media="(prefers-color-scheme: dark)">
   <title>{safe_title}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
