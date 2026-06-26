@@ -783,6 +783,42 @@ def css_status_panel() -> str:
   font-size: .85rem;
   font-weight: 500;
 }
+
+.status-panel-actions {
+  margin-top: 1rem;
+}
+
+.btn-restart-server {
+  display: inline-block;
+  padding: .4rem .85rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+  font-size: .85rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-restart-server:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border-strong));
+}
+
+.btn-restart-server:disabled {
+  opacity: .65;
+  cursor: wait;
+}
+
+.status-panel-restarting .status-panel-title::after {
+  content: " — restarting";
+  color: var(--muted);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+}
 """
 
 

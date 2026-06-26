@@ -19,6 +19,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 from auth import get_access_token, request_authorized, send_unauthorized  # noqa: E402
 from build_delete import BuildDeleteError, delete_build  # noqa: E402
+from server_restart import schedule_restart  # noqa: E402
 from ota_index import (  # noqa: E402
     collect_builds,
     collect_disk_stats,
@@ -169,6 +170,7 @@ class OTAHandler(SimpleHTTPRequestHandler):
             self._base_url(),
             token,
             enable_delete=bool(token),
+            enable_restart=bool(token),
             server_status=self._server_status(),
         )
         self._send_bytes(200, html_body.encode("utf-8"), "text/html; charset=utf-8")
@@ -209,6 +211,20 @@ class OTAHandler(SimpleHTTPRequestHandler):
         self.send_response(302)
         self.send_header("Location", redirect)
         self.end_headers()
+
+    def _handle_restart(self) -> None:
+        try:
+            schedule_restart(root=ROOT)
+        except FileNotFoundError as exc:
+            body = json.dumps({"error": str(exc)}).encode("utf-8")
+            self._send_bytes(500, body, "application/json; charset=utf-8")
+            return
+
+        print("scheduled server restart", flush=True)
+        body = json.dumps(
+            {"restarting": True, "message": "Server restart scheduled"}
+        ).encode("utf-8")
+        self._send_bytes(202, body, "application/json; charset=utf-8")
 
     def do_GET(self) -> None:
         path = self._route_path()
@@ -251,8 +267,12 @@ class OTAHandler(SimpleHTTPRequestHandler):
     def do_POST(self) -> None:
         if not self._check_auth():
             return
-        if self._route_path() == "/api/builds/delete":
+        path = self._route_path()
+        if path == "/api/builds/delete":
             self._handle_delete()
+            return
+        if path == "/api/server/restart":
+            self._handle_restart()
             return
         self.send_error(404)
 
