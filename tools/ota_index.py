@@ -279,6 +279,7 @@ def _build_entry_if_valid(build_dir: Path, project_id: str) -> dict | None:
                 "ipa_url": summary.get("ipa_url"),
                 "duration_seconds": summary.get("duration_seconds"),
                 "ipa_size_bytes": summary.get("ipa_size_bytes"),
+                "icon_path": summary.get("icon_path"),
             }
         )
         if summary.get("ipa_filename"):
@@ -287,6 +288,10 @@ def _build_entry_if_valid(build_dir: Path, project_id: str) -> dict | None:
             entry["build_label"] = summary["build_label"]
         if summary.get("configuration"):
             entry["configuration"] = summary["configuration"]
+    has_icon_file = (build_dir / "icon.png").is_file()
+    entry["has_icon"] = has_icon_file
+    if has_icon_file and not entry.get("icon_path"):
+        entry["icon_path"] = f"/{project_id}/{build_dir.name}/icon.png"
     entry["build_label"] = _fallback_build_label(entry, build_dir)
     return entry
 
@@ -533,9 +538,20 @@ def render_index(
                 label="Copy latest",
             )
 
+        latest_icon_html = ""
+        for b in builds:
+            if b.get("is_latest") and b.get("has_icon") and b.get("icon_path"):
+                icon_src = u(f"{base}{b['icon_path']}")
+                latest_icon_html = (
+                    f'<img class="app-icon" src="{html.escape(icon_src)}" alt="" '
+                    f'width="40" height="40">'
+                )
+                break
+
+        title_row = f'<div class="project-title-row">{latest_icon_html}<h2>{display}</h2></div>'
         sections.append(
             f'<section class="project-card">'
-            f'<div class="project-card-header"><h2>{display}</h2>{header_actions}</div>'
+            f'<div class="project-card-header">{title_row}{header_actions}</div>'
         )
 
         sections.append(
@@ -565,9 +581,18 @@ def render_index(
                 confirm_msg=confirm_msg,
             )
 
+            build_icon_html = ""
+            if b.get("has_icon") and b.get("icon_path"):
+                icon_src = u(f"{base}{b['icon_path']}")
+                build_icon_html = (
+                    f'<img class="build-icon" src="{html.escape(icon_src)}" alt="" '
+                    f'width="28" height="28">'
+                )
+
             build_cell = (
                 f'<div class="build-name" title="{full_name}">'
-                f'<span class="build-label">{label}</span>{badges_html}</div>'
+                f'<div class="project-title-row">{build_icon_html}'
+                f'<span class="build-label">{label}</span></div>{badges_html}</div>'
             )
 
             duration_cell = html.escape(_format_duration(b.get("duration_seconds")))

@@ -51,19 +51,26 @@ def build_install_html(
     manifest_url: str,
     ipa_url: str,
     install_page_url: str,
+    icon_url: str | None = None,
 ) -> str:
     # Manifest URL must be percent-encoded inside itms-services (especially ?token=...)
     encoded_manifest = quote(manifest_url, safe="")
     install_href = f"itms-services://?action=download-manifest&url={encoded_manifest}"
     safe_title = html.escape(title)
     qr_html = qr_svg(install_page_url)
+    icon_html = ""
+    if icon_url:
+        icon_html = (
+            f'<img class="install-app-icon" src="{html.escape(icon_url)}" '
+            f'alt="" width="72" height="72">\n      '
+        )
     return f"""<!DOCTYPE html>
 <html lang="en">
 {base_head(f"{title} — Install", narrow=True)}
 <body>
   <main class="page">
     <div class="install-card">
-      <h1>{safe_title}</h1>
+      {icon_html}<h1>{safe_title}</h1>
       <p class="muted">Open this page in Safari on your iPhone to install.</p>
       <div class="install-qr" aria-hidden="true">
         {qr_html}
@@ -88,6 +95,7 @@ def main() -> int:
     parser.add_argument("--bundle-id", required=True)
     parser.add_argument("--bundle-version", required=True)
     parser.add_argument("--ipa-filename", default="app.ipa")
+    parser.add_argument("--icon-filename", default="")
     parser.add_argument("--access-token", default="")
     args = parser.parse_args()
 
@@ -101,6 +109,10 @@ def main() -> int:
     ipa_url = with_access_token(f"{base}/{rel}/{encoded_ipa}", token)
     manifest_url = with_access_token(f"{base}/{rel}/manifest.plist", token)
     install_page_url = with_access_token(f"{base}/{rel}/install.html", token)
+    icon_url = None
+    if args.icon_filename:
+        encoded_icon = quote(args.icon_filename, safe="")
+        icon_url = with_access_token(f"{base}/{rel}/{encoded_icon}", token)
 
     manifest_bytes = build_manifest(
         title=args.display_name,
@@ -125,6 +137,7 @@ def main() -> int:
             manifest_url=manifest_url,
             ipa_url=ipa_url,
             install_page_url=install_page_url,
+            icon_url=icon_url,
         ),
         encoding="utf-8",
     )

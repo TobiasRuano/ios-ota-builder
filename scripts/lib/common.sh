@@ -195,6 +195,7 @@ make_build_dir() {
           "$BUILD_OUTPUT_DIR/install.html" \
           "$BUILD_OUTPUT_DIR/manifest.plist" \
           "$BUILD_OUTPUT_DIR/summary.json" \
+          "$BUILD_OUTPUT_DIR/icon.png" \
           "$BUILD_OUTPUT_DIR/diagnostics.md" \
           "$BUILD_OUTPUT_DIR/.ota_failure_reason"
     rm -rf "$BUILD_OUTPUT_DIR/work"
@@ -228,6 +229,7 @@ write_summary_json() {
   local ipa_size_bytes="${12:-0}"
   local ipa_filename="${13:-${IPA_FILENAME:-app.ipa}}"
   local build_label="${14:-${BUILD_LABEL:-}}"
+  local icon_path="${15:-}"
 
   local summary_file="$BUILD_OUTPUT_DIR/summary.json"
   local now
@@ -254,6 +256,7 @@ write_summary_json() {
     --argjson ipa_size_bytes "$ipa_size_bytes" \
     --arg ipa_filename "$ipa_filename" \
     --arg build_label "$build_label" \
+    --arg icon_path "$icon_path" \
     '{
       status: $status,
       project: $project,
@@ -274,7 +277,8 @@ write_summary_json() {
       configuration: (if $configuration == "" then null else $configuration end),
       ipa_size_bytes: (if $ipa_size_bytes == 0 then null else $ipa_size_bytes end),
       ipa_filename: (if $ipa_filename == "" then null else $ipa_filename end),
-      build_label: (if $build_label == "" then null else $build_label end)
+      build_label: (if $build_label == "" then null else $build_label end),
+      icon_path: (if $icon_path == "" then null else $icon_path end)
     }' >"$summary_file"
 
   export SUMMARY_FILE="$summary_file"
