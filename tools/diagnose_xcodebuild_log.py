@@ -62,6 +62,19 @@ PATTERNS: list[tuple[str, str, str]] = [
 ]
 
 
+def read_ota_failure_reason(build_dir: Path) -> tuple[str, str, str] | None:
+    path = build_dir / ".ota_failure_reason"
+    if not path.is_file():
+        return None
+    lines = [line.strip() for line in path.read_text(encoding="utf-8", errors="replace").splitlines() if line.strip()]
+    if not lines:
+        return None
+    summary = lines[0]
+    suggestion = "\n".join(lines[1:]) if len(lines) > 1 else "Review the build output directory."
+    category = "archive" if "CFBundleVersion" in summary else "build"
+    return category, summary, suggestion
+
+
 def read_logs(build_dir: Path) -> tuple[str, Path | None]:
     parts: list[str] = []
     primary: Path | None = None
@@ -170,7 +183,12 @@ def main() -> int:
     args = parser.parse_args()
 
     log_text, primary = read_logs(args.build_dir)
-    category, summary, suggestion, errors = diagnose(log_text, args.stage)
+    ota_reason = read_ota_failure_reason(args.build_dir)
+    if ota_reason:
+        category, summary, suggestion = ota_reason
+        errors = [summary]
+    else:
+        category, summary, suggestion, errors = diagnose(log_text, args.stage)
 
     out = args.build_dir / "diagnostics.md"
     write_diagnostics(

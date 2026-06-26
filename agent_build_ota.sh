@@ -118,6 +118,13 @@ main() {
     exit "$EC_ENVIRONMENT"
   fi
 
+  if [[ "${AUTO_INCREMENT_BUILD:-false}" == "true" ]]; then
+    if ! "$OTA_BUILDER_ROOT/scripts/verify_build_number.sh" "$PROJECT_ID"; then
+      FAILED_STAGE="environment"
+      exit "$EC_ENVIRONMENT"
+    fi
+  fi
+
   # Optional: warn if server down (non-blocking for local builds)
   if ! "$OTA_BUILDER_ROOT/scripts/serve_check.sh" 2>/dev/null; then
     log "Warning: OTA server not running. URLs will still be generated."
@@ -140,8 +147,11 @@ main() {
 
   read_archive_version "$ARCHIVE_PATH"
   if [[ -n "${OTA_BUILD_NUMBER:-}" && "$APP_BUILD" != "$OTA_BUILD_NUMBER" ]]; then
-    log_error "Archive CFBundleVersion ($APP_BUILD) does not match reserved build ($OTA_BUILD_NUMBER)."
-    log "Ensure Info.plist sets CFBundleVersion to \$(CURRENT_PROJECT_VERSION)."
+    mismatch_msg="Archive CFBundleVersion ($APP_BUILD) does not match reserved build ($OTA_BUILD_NUMBER)."
+    fix_msg="Ensure Info.plist sets CFBundleVersion to \$(CURRENT_PROJECT_VERSION)."
+    printf '%s\n%s\n' "$mismatch_msg" "$fix_msg" >"$BUILD_OUTPUT_DIR/.ota_failure_reason"
+    log_error "$mismatch_msg"
+    log "$fix_msg"
     FAILED_STAGE="archive"
     exit "$EC_ARCHIVE"
   fi
