@@ -133,6 +133,79 @@ _DROPDOWN_SCRIPT = """<script>
 })();
 </script>"""
 
+_RESTART_SCRIPT = """<script>
+(function () {
+  var POLL_INTERVAL_MS = 2000;
+  var TIMEOUT_MS = 30000;
+
+  function pollHealth(onReady, onTimeout) {
+    var started = Date.now();
+    function check() {
+      fetch("/health", { cache: "no-store" })
+        .then(function (resp) {
+          if (!resp.ok) throw new Error("health not ok");
+          return resp.json();
+        })
+        .then(function (data) {
+          if (data && data.ok) {
+            onReady();
+            return;
+          }
+          throw new Error("health not ok");
+        })
+        .catch(function () {
+          if (Date.now() - started >= TIMEOUT_MS) {
+            onTimeout();
+            return;
+          }
+          setTimeout(check, POLL_INTERVAL_MS);
+        });
+    }
+    setTimeout(check, POLL_INTERVAL_MS);
+  }
+
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest(".btn-restart-server");
+    if (!btn || btn.disabled) return;
+
+    var action = btn.getAttribute("data-restart-action");
+    if (!action) return;
+
+    if (!confirm("Restart the OTA server? The dashboard will be briefly unavailable.")) {
+      return;
+    }
+
+    var panel = btn.closest(".status-panel");
+    var originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Restarting…";
+    if (panel) panel.classList.add("status-panel-restarting");
+
+    fetch(action, { method: "POST" })
+      .then(function (resp) {
+        if (!resp.ok && resp.status !== 202) {
+          throw new Error("restart request failed");
+        }
+        pollHealth(
+          function () { window.location.reload(); },
+          function () {
+            btn.disabled = false;
+            btn.textContent = originalText;
+            if (panel) panel.classList.remove("status-panel-restarting");
+            alert("Server did not come back within 30 seconds. Check the Mac or run ./server/restart_server.sh.");
+          }
+        );
+      })
+      .catch(function () {
+        btn.disabled = false;
+        btn.textContent = originalText;
+        if (panel) panel.classList.remove("status-panel-restarting");
+        alert("Could not schedule server restart.");
+      });
+  });
+})();
+</script>"""
+
 _CHEVRON_SVG = (
     '<svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true" focusable="false">'
     '<path fill="currentColor" d="M4.427 6.573a.25.25 0 0 0-.035.385l3.85 3.85a.25.25 0 0 0 '
@@ -646,7 +719,7 @@ def _status_dot(*, ok: bool) -> str:
     return f'<span class="{dot_class}" aria-hidden="true"></span>'
 
 
-def render_status_panel(status: dict) -> str:
+def render_status_panel(status: dict, *, restart_action: str = "") -> str:
     disk = status.get("disk", {})
     threshold_mb = disk.get("threshold_mb", 5000)
     panel_class = "status-panel"
@@ -701,11 +774,22 @@ def render_status_panel(status: dict) -> str:
             f"{html.escape(str(threshold_mb))} MB threshold</p>"
         )
 
+    restart_html = ""
+    if restart_action:
+        restart_html = (
+            '<div class="status-panel-actions">'
+            f'<button type="button" class="btn-restart-server" '
+            f'data-restart-action="{html.escape(restart_action)}">'
+            "Restart server</button>"
+            "</div>"
+        )
+
     return (
         f'<footer class="{panel_class}">'
         '<p class="status-panel-title">Server status</p>'
         f'<div class="status-panel-grid">{"".join(rows)}</div>'
         f"{warning_html}"
+        f"{restart_html}"
         "</footer>"
     )
 
@@ -724,6 +808,7 @@ def render_index(
     access_token: str | None = None,
     *,
     enable_delete: bool = True,
+    enable_restart: bool = True,
     ota_dir: Path | None = None,
     server_status: dict | None = None,
     min_disk_mb: int = 5000,
@@ -750,6 +835,7 @@ def render_index(
     )
 
     delete_action = u("/api/builds/delete") if enable_delete and token else ""
+    restart_action = u("/api/server/restart") if enable_restart and token else ""
 
     for project_id, project in data.get("projects", {}).items():
         display = html.escape(project.get("display_name", project_id))
@@ -859,9 +945,11 @@ def render_index(
     if panel_status is None and ota_dir is not None:
         panel_status = {"disk": collect_disk_stats(ota_dir, min_disk_mb=min_disk_mb)}
     if panel_status is not None:
-        sections.append(render_status_panel(panel_status))
+        sections.append(render_status_panel(panel_status, restart_action=restart_action))
 
-    sections.append(f"</main>\n{_COPY_SCRIPT}\n{_DROPDOWN_SCRIPT}\n</body></html>")
+    sections.append(
+        f"</main>\n{_COPY_SCRIPT}\n{_DROPDOWN_SCRIPT}\n{_RESTART_SCRIPT}\n</body></html>"
+    )
     return "\n".join(sections)
 
 
