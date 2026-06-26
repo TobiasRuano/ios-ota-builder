@@ -308,6 +308,7 @@ def test_render_build_panel_includes_controls() -> None:
     html = render_build_panel(
         "my-app",
         trigger_url="/api/builds/trigger?token=secret",
+        preflight_url="/api/builds/preflight?token=secret",
         git_status_url="/api/git/status?token=secret&project=my-app",
         git_branches_url="/api/git/branches?token=secret&project=my-app",
         git_fetch_url="/api/git/fetch?token=secret",
@@ -316,6 +317,10 @@ def test_render_build_panel_includes_controls() -> None:
     assert "build-panel" in html
     assert 'id="build-panel-my-app"' in html
     assert " hidden" in html
+    assert "Check environment" in html
+    assert "btn-build-preflight" in html
+    assert "build-preflight-results" in html
+    assert 'data-preflight-url="/api/builds/preflight?token=secret"' in html
     assert "Start build" in html
     assert "btn-build-cancel" in html
     assert 'data-project-id="my-app"' in html
@@ -343,6 +348,8 @@ def test_render_index_includes_build_panel_when_token_present() -> None:
     assert "btn-new-build-toggle" in html
     assert "btn-build-start" in html
     assert "/api/builds/trigger?token=secret" in html
+    assert "/api/builds/preflight?token=secret" in html
+    assert "Check environment" in html
     assert 'window.__OTA_AUTH_MODE="token"' in html
     assert "window.__OTA_TOKEN" in html
 
@@ -359,6 +366,7 @@ def test_render_index_session_mode_uses_clean_urls_and_csrf() -> None:
         csrf_token="csrf-secret",
     )
     assert "/api/builds/trigger" in html
+    assert "/api/builds/preflight" in html
     assert "?token=" not in html
     assert "window.__OTA_TOKEN" not in html
     assert 'window.__OTA_AUTH_MODE="session"' in html

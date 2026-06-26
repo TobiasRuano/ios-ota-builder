@@ -1326,6 +1326,47 @@ F13, F14, F15 (all Done).
 
 ---
 
+<a id="f30"></a>
+### F30 — Dashboard preflight (Check environment)
+
+| | |
+|---|---|
+| **Status** | Done |
+| **Priority** | P2 |
+| **Effort** | S |
+| **Phase** | 5 |
+
+**Problem**  
+F16 CLI preflight and F29 dashboard build trigger are not connected. Users must SSH to run `agent_build_ota.sh --dry-run` before starting a long build from the UI.
+
+**Proposed solution**  
+Add **Check environment** button to the New build panel:
+
+- `POST /api/builds/preflight` → synchronous `agent_build_ota.sh --dry-run <project-id>`
+- Returns F16 JSON; HTTP 200 when blocking checks pass, 422 when signing/disk fail
+- Server unreachable is `warn` only (non-blocking), same as CLI
+- UI renders `checks[]` inline without page reload
+
+**Files touched**
+
+- `server/preflight.py`, `server/static_server.py`
+- `tools/ota_index.py`, `tools/ui_theme.py`
+- `tests/server/test_preflight.py`, `tests/tools/test_ota_index.py`
+- `docs/SETUP.md`
+
+**Dependencies**  
+F16, F29.
+
+**Acceptance criteria**
+
+- [x] "Check environment" button in New build panel (token/session auth)
+- [x] API runs `--dry-run` and returns F16 JSON
+- [x] UI shows per-check ok / warn / failed
+- [x] Server down → warn, HTTP 200; signing fail → HTTP 422
+- [x] pytest for API handler and panel HTML
+
+---
+
 ## Shared implementation notes
 
 ### Cross-linking

@@ -227,6 +227,44 @@ _BUILD_SCRIPT_BODY = """
     el.classList.toggle("is-active", !!active);
   }
 
+  function renderPreflightResults(panel, data) {
+    var el = panel.querySelector(".build-preflight-results");
+    if (!el || !data) return;
+    var checks = data.checks || [];
+    var status = data.status || "unknown";
+    var duration = data.duration_seconds != null ? data.duration_seconds + "s" : "";
+    var summary = "Environment: " + status;
+    if (duration) summary += " (" + duration + ")";
+    var html = '<p class="build-preflight-summary">' + escapeHtml(summary) + "</p><ul>";
+    checks.forEach(function (check) {
+      var name = check.name || "check";
+      var st = check.status || "unknown";
+      var cls = "preflight-ok";
+      if (st === "warn") cls = "preflight-warn";
+      if (st === "failed") cls = "preflight-failed";
+      var line = '<li class="' + cls + '"><span class="preflight-name">' + escapeHtml(name) + "</span>";
+      line += ' <span class="preflight-status">' + escapeHtml(st) + "</span>";
+      if (check.free_mb != null && check.threshold_mb != null) {
+        line += ' <span class="preflight-meta">'
+          + escapeHtml(check.free_mb + " MB free (min " + check.threshold_mb + " MB)")
+          + "</span>";
+      }
+      if (check.reachable === true || check.reachable === false) {
+        line += ' <span class="preflight-meta">'
+          + escapeHtml(check.reachable ? "reachable" : "not reachable")
+          + "</span>";
+      }
+      if (check.message) {
+        line += ' <span class="preflight-message">' + escapeHtml(check.message) + "</span>";
+      }
+      line += "</li>";
+      html += line;
+    });
+    html += "</ul>";
+    el.innerHTML = html;
+    el.hidden = false;
+  }
+
   var BUILDS_TABLE_HTML = '<table class="builds-table"><colgroup>'
     + '<col class="col-build"><col class="col-branch"><col class="col-commit">'
     + '<col class="col-version"><col class="col-duration"><col class="col-size"><col class="col-actions">'
@@ -550,6 +588,41 @@ _BUILD_SCRIPT_BODY = """
           loadGitStatus(panel);
         })
         .finally(function () { fetchBtn.disabled = false; });
+      return;
+    }
+
+    var preflightBtn = e.target.closest(".btn-build-preflight");
+    if (preflightBtn) {
+      var preflightPanel = preflightBtn.closest(".build-panel");
+      var preflightUrl = preflightPanel.getAttribute("data-preflight-url");
+      if (!preflightUrl) return;
+      var originalText = preflightBtn.textContent;
+      preflightBtn.disabled = true;
+      preflightBtn.textContent = "Checking…";
+      var preflightBody = "project_id=" + encodeURIComponent(
+        preflightPanel.getAttribute("data-project-id")
+      );
+      fetch(apiUrl(preflightUrl), postFetchOptions(preflightBody))
+        .then(function (r) {
+          return r.json().then(function (j) { return { status: r.status, j: j }; });
+        })
+        .then(function (res) {
+          if (res.status === 200 || res.status === 422) {
+            if (!res.j || !res.j.checks) {
+              throw new Error("invalid preflight response");
+            }
+            renderPreflightResults(preflightPanel, res.j);
+            return;
+          }
+          throw new Error((res.j && res.j.error) || "preflight failed");
+        })
+        .catch(function (err) {
+          setProgress(preflightPanel, err.message || "Could not check environment", true);
+        })
+        .finally(function () {
+          preflightBtn.disabled = false;
+          preflightBtn.textContent = originalText;
+        });
       return;
     }
 
@@ -1351,6 +1424,7 @@ def render_build_panel(
     project_id: str,
     *,
     trigger_url: str,
+    preflight_url: str,
     git_status_url: str,
     git_branches_url: str,
     git_fetch_url: str,
@@ -1361,6 +1435,7 @@ def render_build_panel(
     return (
         f'<div class="build-panel" id="{panel_id}" hidden data-project-id="{pid}" '
         f'data-trigger-url="{html.escape(trigger_url)}" '
+        f'data-preflight-url="{html.escape(preflight_url)}" '
         f'data-git-status-url="{html.escape(git_status_url)}" '
         f'data-git-branches-url="{html.escape(git_branches_url)}" '
         f'data-git-fetch-url="{html.escape(git_fetch_url)}" '
@@ -1392,10 +1467,12 @@ def render_build_panel(
         "</div>"
         "</div>"
         '<div class="build-panel-actions">'
+        '<button type="button" class="btn-build-secondary btn-build-preflight">Check environment</button>'
         '<button type="button" class="btn-build-start">Start build</button>'
         '<button type="button" class="btn-build-secondary btn-build-fetch">Fetch remotes</button>'
         '<button type="button" class="btn-build-secondary btn-build-cancel">Cancel</button>'
         "</div>"
+        '<div class="build-preflight-results" hidden aria-live="polite"></div>'
         '<p class="build-panel-progress" aria-live="polite"></p>'
         "</div>"
     )
@@ -1470,6 +1547,7 @@ def render_index(
     restart_action = u("/api/server/restart") if enable_restart and dashboard_enabled else ""
     build_enabled = enable_build and dashboard_enabled
     trigger_url = u("/api/builds/trigger") if build_enabled else ""
+    preflight_url = u("/api/builds/preflight") if build_enabled else ""
     git_status_base = u("/api/git/status") if build_enabled else ""
     git_branches_base = u("/api/git/branches") if build_enabled else ""
     git_fetch_url = u("/api/git/fetch") if build_enabled else ""
@@ -1502,6 +1580,7 @@ def render_index(
             build_panel_html = render_build_panel(
                 project_id,
                 trigger_url=trigger_url,
+                preflight_url=preflight_url,
                 git_status_url=project_api_url(git_status_base, project_id),
                 git_branches_url=project_api_url(git_branches_base, project_id),
                 git_fetch_url=git_fetch_url,

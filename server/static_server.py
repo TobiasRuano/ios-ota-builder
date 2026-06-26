@@ -52,7 +52,12 @@ from git_api import (  # noqa: E402
 )
 from login_rate_limit import is_rate_limited, record_failure  # noqa: E402
 from ota_dynamic import parse_ota_artifact_path, render_ota_artifact  # noqa: E402
-from server_restart import schedule_restart  # noqa: E402
+from preflight import (  # noqa: E402
+    PreflightTimeout,
+    http_status_for_preflight,
+    run_preflight,
+    validate_preflight_request,
+)
 from ota_index import (  # noqa: E402
     collect_builds,
     collect_disk_stats,
@@ -487,6 +492,30 @@ class OTAHandler(SimpleHTTPRequestHandler):
         except (BuildJobError, FileNotFoundError) as exc:
             self._send_json(400, {"error": str(exc)})
 
+    def _handle_build_preflight(self) -> None:
+        form = self._parse_form_body()
+        if not form:
+            form = self._parse_json_body()
+        if not csrf_valid(self, form):
+            self._reject_csrf()
+            return
+        project_id = str(form.get("project_id", "")).strip()
+        projects = self._projects()
+        allowed = set(projects.keys()) if projects else None
+
+        try:
+            project_id = validate_preflight_request(
+                project_id=project_id,
+                allowed_projects=allowed,
+            )
+            exit_code, payload = run_preflight(ROOT, project_id)
+            status = http_status_for_preflight(exit_code, payload)
+            self._send_json(status, payload)
+        except BuildJobError as exc:
+            self._send_json(400, {"error": str(exc)})
+        except PreflightTimeout as exc:
+            self._send_json(504, {"error": str(exc)})
+
     def _handle_build_job_get(self, job_id: str) -> None:
         job = read_job(ROOT, job_id)
         if job is None:
@@ -674,6 +703,9 @@ class OTAHandler(SimpleHTTPRequestHandler):
             return
         if path == "/api/builds/trigger":
             self._handle_build_trigger()
+            return
+        if path == "/api/builds/preflight":
+            self._handle_build_preflight()
             return
         self.send_error(404)
 
