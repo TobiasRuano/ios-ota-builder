@@ -490,7 +490,8 @@ def render_index(
         builds = project.get("builds", [])
         if not builds:
             sections.append(
-                f'<section class="project-card"><h2>{display}</h2>'
+                f'<section class="project-card">'
+                f'<div class="project-card-header"><h2>{display}</h2></div>'
                 '<p class="empty-state">No builds yet.</p></section>'
             )
             continue
