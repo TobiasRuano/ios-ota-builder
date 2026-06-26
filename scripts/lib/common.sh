@@ -156,15 +156,23 @@ git_metadata() {
 }
 
 make_build_dir() {
-  local timestamp branch_slug config_suffix dir_name
-  timestamp="$(date '+%Y-%m-%d_%H%M')"
-  branch_slug="$(slugify "$GIT_BRANCH")"
-  config_suffix=""
-  if [[ "${CONFIGURATION:-Release}" == "Debug" ]]; then
-    config_suffix="-debug"
+  local dir_name date_prefix
+  if [[ -n "${OTA_BUILD_NUMBER:-}" ]]; then
+    date_prefix="$(date '+%d-%m')"
+    dir_name="${date_prefix}-${OTA_BUILD_NUMBER}"
+  else
+    dir_name="$(date '+%d-%m-%H%M%S')"
   fi
-  dir_name="${timestamp}_${branch_slug}${config_suffix}"
   BUILD_OUTPUT_DIR="$OTA_BUILDS_DIR/$PROJECT_ID/$dir_name"
+  if [[ -d "$BUILD_OUTPUT_DIR" ]]; then
+    rm -f "$BUILD_OUTPUT_DIR/app.ipa" \
+          "$BUILD_OUTPUT_DIR/install.html" \
+          "$BUILD_OUTPUT_DIR/manifest.plist" \
+          "$BUILD_OUTPUT_DIR/summary.json" \
+          "$BUILD_OUTPUT_DIR/diagnostics.md" \
+          "$BUILD_OUTPUT_DIR/.ota_failure_reason"
+    rm -rf "$BUILD_OUTPUT_DIR/work"
+  fi
   mkdir -p "$BUILD_OUTPUT_DIR"
   export BUILD_OUTPUT_DIR BUILD_DIR_NAME="$dir_name"
 }

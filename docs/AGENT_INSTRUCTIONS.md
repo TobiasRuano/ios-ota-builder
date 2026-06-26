@@ -68,7 +68,7 @@ Stable install URL for bookmarks:
   "branch": "main",
   "commit": "abc1234",
   "duration_seconds": 312,
-  "install_url": "https://ota.example.com/my-app/2026-06-25_2015_main/install.html?token=...",
+  "install_url": "https://ota.example.com/my-app/25-06-142/install.html?token=...",
   "latest_install_url": "https://ota.example.com/latest/my-app?token=...",
   "dashboard_url": "https://ota.example.com/?token=...",
   "manifest_url": "https://...",

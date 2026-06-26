@@ -40,8 +40,10 @@ fi
 log "Dependencies resolved."
 
 if [[ "${AUTO_INCREMENT_BUILD:-false}" == "true" ]]; then
-  OTA_BUILD_NUMBER="$("$OTA_BUILDER_ROOT/scripts/resolve_build_number.sh" resolve)"
-  export OTA_BUILD_NUMBER
+  if [[ -z "${OTA_BUILD_NUMBER:-}" ]]; then
+    OTA_BUILD_NUMBER="$("$OTA_BUILDER_ROOT/scripts/resolve_build_number.sh" resolve)"
+    export OTA_BUILD_NUMBER
+  fi
   printf '%s\n' "$OTA_BUILD_NUMBER" >"$BUILD_OUTPUT_DIR/.ota_build_number"
 fi
 
