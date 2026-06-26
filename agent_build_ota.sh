@@ -23,12 +23,14 @@ Usage: agent_build_ota.sh [options] <project-id>
 Options:
   --debug              Archive/export using Debug configuration (overrides projects.json)
   --release            Archive/export using Release configuration (overrides projects.json)
+  --dry-run            Run preflight only (signing, disk, server); no compile
   --workspace-path P   Build from this app repo path (e.g. a git worktree)
   --notes TEXT         Manual release notes (overrides auto-generated git log notes)
   -h, --help           Show this help
 
 Examples:
   agent_build_ota.sh dev-quotes
+  agent_build_ota.sh --dry-run dev-quotes
   agent_build_ota.sh --debug dev-quotes
   agent_build_ota.sh --release finanzio
   agent_build_ota.sh --notes "Fixed login crash" dev-quotes
@@ -49,6 +51,10 @@ parse_args() {
         ;;
       --release)
         OTA_CONFIGURATION_OVERRIDE="Release"
+        shift
+        ;;
+      --dry-run)
+        OTA_DRY_RUN=1
         shift
         ;;
       --workspace-path)
@@ -97,7 +103,7 @@ parse_args() {
     esac
   done
 
-  export OTA_CONFIGURATION_OVERRIDE PROJECT_ID OTA_WORKSPACE_PATH OTA_RELEASE_NOTES
+  export OTA_CONFIGURATION_OVERRIDE OTA_DRY_RUN PROJECT_ID OTA_WORKSPACE_PATH OTA_RELEASE_NOTES
 }
 
 on_exit() {
@@ -141,6 +147,22 @@ main() {
     log_error "Missing project-id"
     usage
     exit "$EC_ENVIRONMENT"
+  fi
+
+  if [[ "${OTA_DRY_RUN:-}" == "1" ]]; then
+    export OTA_NOTIFY_SKIP=1
+    load_config
+    load_project "$PROJECT_ID"
+    if [[ -n "${OTA_WORKSPACE_PATH:-}" ]]; then
+      if [[ ! -d "$OTA_WORKSPACE_PATH" ]]; then
+        log_error "Workspace path not found: $OTA_WORKSPACE_PATH"
+        exit "$EC_ENVIRONMENT"
+      fi
+      PROJECT_PATH="$(cd "$OTA_WORKSPACE_PATH" && pwd)"
+      export PROJECT_PATH
+    fi
+    run_dry_run_preflight
+    exit $?
   fi
 
   OTA_BUILD_ATTEMPTED=true

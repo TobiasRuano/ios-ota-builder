@@ -125,8 +125,18 @@ Common fixes:
 
 ## Preflight (optional)
 
+Run all preflight checks in one command before a long build (signing, disk, server — no compile):
+
 ```bash
-/path/to/ios-ota-builder/scripts/verify_signing.sh my-app
+/path/to/ios-ota-builder/agent_build_ota.sh --dry-run <project-id>
+```
+
+Stdout is JSON `{ "status": "ok", "checks": [...] }`. Exit 0 when blocking checks pass; server down is reported as a warning only.
+
+Individual checks:
+
+```bash
+/path/to/ios-ota-builder/scripts/verify_signing.sh <project-id>
 /path/to/ios-ota-builder/scripts/serve_check.sh
 ```
 

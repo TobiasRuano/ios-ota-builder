@@ -411,12 +411,127 @@ write_build_status() {
 
 check_disk_space() {
   local min_mb="${1:-5000}"
-  local avail_kb
+  local avail_kb free_mb
+  mkdir -p "$OTA_BUILDS_DIR"
   avail_kb="$(df -k "$OTA_BUILDS_DIR" | awk 'NR==2 {print $4}')"
   if [[ "$avail_kb" -lt $((min_mb * 1024)) ]]; then
-    log_error "Insufficient disk space (need ~${min_mb}MB free in $OTA_BUILDS_DIR)"
+    free_mb=$((avail_kb / 1024))
+    log_error "Insufficient disk space (need ~${min_mb}MB free in $OTA_BUILDS_DIR, have ~${free_mb}MB)"
     exit "$EC_ENVIRONMENT"
   fi
+}
+
+collect_disk_check_json() {
+  local threshold_mb="${1:-5000}"
+  local avail_kb free_mb disk_ok
+  mkdir -p "$OTA_BUILDS_DIR"
+  avail_kb="$(df -k "$OTA_BUILDS_DIR" | awk 'NR==2 {print $4}')"
+  free_mb=$((avail_kb / 1024))
+  disk_ok=true
+  if [[ "$free_mb" -lt "$threshold_mb" ]]; then
+    disk_ok=false
+  fi
+  jq -n \
+    --argjson free_mb "$free_mb" \
+    --argjson threshold_mb "$threshold_mb" \
+    --argjson ok "$disk_ok" \
+    '{free_mb: $free_mb, threshold_mb: $threshold_mb, ok: $ok}'
+}
+
+print_preflight_json() {
+  local status="$1"
+  local checks_json="$2"
+  local duration="$3"
+  jq -n \
+    --arg status "$status" \
+    --arg project "${PROJECT_ID:-}" \
+    --arg display_name "${DISPLAY_NAME:-}" \
+    --argjson duration_seconds "$duration" \
+    --argjson checks "$checks_json" \
+    '{
+      status: $status,
+      project: $project,
+      display_name: $display_name,
+      duration_seconds: $duration_seconds,
+      checks: $checks
+    }'
+}
+
+run_dry_run_preflight() {
+  local start_epoch duration threshold_mb disk_json disk_ok signing_ec server_ec
+  local checks_json overall_status server_url server_msg
+
+  start_epoch=$(date +%s)
+  threshold_mb="${OTA_STATUS_MIN_DISK_MB:-5000}"
+  overall_status="ok"
+  checks_json='[
+    {"name": "config", "status": "ok"},
+    {"name": "project", "status": "ok"}
+  ]'
+
+  log "=== OTA Preflight (dry-run): $DISPLAY_NAME ($PROJECT_ID) ==="
+
+  disk_json="$(collect_disk_check_json "$threshold_mb")"
+  disk_ok="$(jq -r '.ok' <<<"$disk_json")"
+  if [[ "$disk_ok" == "true" ]]; then
+    checks_json="$(jq -n \
+      --argjson checks "$checks_json" \
+      --argjson disk "$disk_json" \
+      '$checks + [{"name": "disk", "status": "ok", "free_mb": $disk.free_mb, "threshold_mb": $disk.threshold_mb}]')"
+  else
+    local fail_msg
+    fail_msg="Insufficient disk space (need ~${threshold_mb}MB free in $OTA_BUILDS_DIR, have ~$(jq -r '.free_mb' <<<"$disk_json")MB)"
+    log_error "$fail_msg"
+    checks_json="$(jq -n \
+      --argjson checks "$checks_json" \
+      --argjson disk "$disk_json" \
+      --arg message "$fail_msg" \
+      '$checks + [{"name": "disk", "status": "failed", "free_mb": $disk.free_mb, "threshold_mb": $disk.threshold_mb, "message": $message}]')"
+    duration=$(($(date +%s) - start_epoch))
+    print_preflight_json "failed" "$checks_json" "$duration"
+    return "$EC_ENVIRONMENT"
+  fi
+
+  set +e
+  "$OTA_BUILDER_ROOT/scripts/verify_signing.sh" "$PROJECT_ID"
+  signing_ec=$?
+  set -e
+  if [[ $signing_ec -eq 0 ]]; then
+    checks_json="$(jq -n --argjson checks "$checks_json" '$checks + [{"name": "signing", "status": "ok"}]')"
+  else
+    server_msg="Signing preflight failed (exit $signing_ec). Run: $OTA_BUILDER_ROOT/scripts/verify_signing.sh $PROJECT_ID"
+    checks_json="$(jq -n \
+      --argjson checks "$checks_json" \
+      --arg message "$server_msg" \
+      '$checks + [{"name": "signing", "status": "failed", "message": $message}]')"
+    duration=$(($(date +%s) - start_epoch))
+    print_preflight_json "failed" "$checks_json" "$duration"
+    return "$EC_ENVIRONMENT"
+  fi
+
+  server_url="http://127.0.0.1:${OTA_PORT:-8765}/"
+  set +e
+  "$OTA_BUILDER_ROOT/scripts/serve_check.sh" >/dev/null
+  server_ec=$?
+  set -e
+  if [[ $server_ec -eq 0 ]]; then
+    checks_json="$(jq -n \
+      --argjson checks "$checks_json" \
+      --arg url "$server_url" \
+      '$checks + [{"name": "server", "status": "ok", "reachable": true, "url": $url}]')"
+  else
+    server_msg="OTA server not reachable at $server_url"
+    log_warn "$server_msg"
+    checks_json="$(jq -n \
+      --argjson checks "$checks_json" \
+      --arg url "$server_url" \
+      --arg message "$server_msg" \
+      '$checks + [{"name": "server", "status": "warn", "reachable": false, "url": $url, "message": $message}]')"
+  fi
+
+  duration=$(($(date +%s) - start_epoch))
+  print_preflight_json "$overall_status" "$checks_json" "$duration"
+  return "$EC_SUCCESS"
 }
 
 build_lock_dir() {
