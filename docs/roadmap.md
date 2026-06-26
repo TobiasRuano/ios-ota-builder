@@ -59,7 +59,7 @@ flowchart LR
 
 | ID | Feature | Phase | Priority | Effort | Status | Spec |
 |----|---------|-------|----------|--------|--------|------|
-| F01 | Rich install page | 3 | P1 | M | Planned | [F01](roadmap-features.md#f01) |
+| F01 | Rich install page | 3 | P1 | M | Done | [F01](roadmap-features.md#f01) |
 | F02 | QR code on install page | 1 | P0 | S | Done | [F02](roadmap-features.md#f02) |
 | F03 | `/latest/<project-id>` redirect | 1 | P0 | S | Done | [F03](roadmap-features.md#f03) |
 | F04 | App icon from archive | 3 | P1 | M | Planned | [F04](roadmap-features.md#f04) |

@@ -233,7 +233,7 @@ write_summary_json() {
 
   local summary_file="$BUILD_OUTPUT_DIR/summary.json"
   local now
-  now="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+  now="${BUILD_DATE:-$(date -u '+%Y-%m-%dT%H:%M:%SZ')}"
 
   jq -n \
     --arg status "$status" \
