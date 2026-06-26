@@ -191,6 +191,8 @@ main() {
   fi
 
   # Manifest + install page
+  BUILD_DATE="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+  export BUILD_DATE
   BASE_URL="${OTA_BASE_URL%/}"
   MANIFEST_ARGS=(
     --build-dir "$BUILD_OUTPUT_DIR"
@@ -201,6 +203,12 @@ main() {
     --bundle-id "$BUNDLE_ID"
     --bundle-version "${APP_VERSION}.${APP_BUILD}"
     --ipa-filename "$IPA_FILENAME"
+    --version "$APP_VERSION"
+    --build-number "$APP_BUILD"
+    --branch "$GIT_BRANCH"
+    --commit "$GIT_COMMIT"
+    --build-date "$BUILD_DATE"
+    --configuration "$CONFIGURATION"
     --access-token "${OTA_ACCESS_TOKEN:-}"
   )
   if [[ -n "$ICON_REL_PATH" ]]; then

@@ -437,6 +437,64 @@ def css_cards() -> str:
   letter-spacing: -.03em;
 }
 
+.install-meta {
+  margin: 0 0 1.25rem;
+}
+
+.install-meta .badge-group {
+  margin-bottom: .75rem;
+}
+
+.install-meta-list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: .35rem .75rem;
+  margin: 0;
+}
+
+.install-meta-list > div {
+  display: contents;
+}
+
+.install-meta-list dt {
+  margin: 0;
+  color: var(--muted);
+  font-size: .82rem;
+  font-weight: 500;
+}
+
+.install-meta-list dd {
+  margin: 0;
+  font: 500 .82rem "IBM Plex Mono", monospace;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.install-notes {
+  margin: 0 0 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.install-notes h2 {
+  margin: 0 0 .5rem;
+  font-size: .9rem;
+  font-weight: 600;
+  letter-spacing: -.01em;
+}
+
+.install-notes-body {
+  margin: 0;
+  padding: .75rem 1rem;
+  border-radius: 6px;
+  background: var(--surface-muted);
+  color: var(--text);
+  font: 400 .82rem "IBM Plex Mono", monospace;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .install-qr {
   display: none;
   margin: 0 0 1.25rem;

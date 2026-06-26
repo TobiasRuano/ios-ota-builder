@@ -40,7 +40,7 @@ Current order in [`agent_build_ota.sh`](../agent_build_ota.sh) — new features 
 
 | | |
 |---|---|
-| **Status** | Planned |
+| **Status** | Done |
 | **Priority** | P1 |
 | **Effort** | M |
 | **Phase** | 3 |
@@ -74,11 +74,11 @@ F05 (release notes) is optional; F04 (icon) can be added independently.
 
 **Acceptance criteria**
 
-- [ ] Install page shows version, build number, branch, commit, date, and configuration
-- [ ] Page uses `ui_theme.py` styles (not legacy inline CSS)
-- [ ] All metadata matches `summary.json` for that build
-- [ ] Page remains usable on iPhone Safari (narrow layout)
-- [ ] `itms-services://` install link still works unchanged
+- [x] Install page shows version, build number, branch, commit, date, and configuration
+- [x] Page uses `ui_theme.py` styles (not legacy inline CSS)
+- [x] All metadata matches `summary.json` for that build
+- [x] Page remains usable on iPhone Safari (narrow layout)
+- [x] `itms-services://` install link still works unchanged
 
 **Notes**  
 Some older builds on disk may have legacy `install.html` without the new theme. Regenerating is optional; new builds always use the updated template.

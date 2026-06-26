@@ -7,6 +7,7 @@ import argparse
 import html
 import plistlib
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
 from xml.etree import ElementTree as ET
@@ -45,13 +46,68 @@ def build_manifest(
     return plistlib.dumps(manifest, fmt=plistlib.FMT_XML)
 
 
+def _format_build_date(iso: str) -> str:
+    """Format ISO UTC timestamp for display on the install page."""
+    try:
+        normalized = iso.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(normalized)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        else:
+            dt = dt.astimezone(timezone.utc)
+        return dt.strftime("%d %b %Y, %H:%M UTC")
+    except (ValueError, TypeError):
+        return iso
+
+
+def _configuration_badge(configuration: str) -> str:
+    if configuration == "Debug":
+        return (
+            '<div class="badge-group">'
+            '<span class="status-badge badge-debug">Debug</span>'
+            "</div>"
+        )
+    if configuration == "Release":
+        return (
+            '<div class="badge-group">'
+            '<span class="status-badge badge-release">Release</span>'
+            "</div>"
+        )
+    return ""
+
+
+def _meta_row(label: str, value: str) -> str:
+    return (
+        f"<div><dt>{html.escape(label)}</dt>"
+        f'<dd>{html.escape(value)}</dd></div>'
+    )
+
+
+def _release_notes_block(release_notes: str) -> str:
+    if not release_notes.strip():
+        return ""
+    safe_notes = html.escape(release_notes.strip())
+    return f"""      <div class="install-notes">
+        <h2>What&apos;s new</h2>
+        <pre class="install-notes-body">{safe_notes}</pre>
+      </div>
+"""
+
+
 def build_install_html(
     *,
     title: str,
     manifest_url: str,
     ipa_url: str,
     install_page_url: str,
+    version: str,
+    build_number: str,
+    branch: str,
+    commit: str,
+    build_date: str,
+    configuration: str,
     icon_url: str | None = None,
+    release_notes: str = "",
 ) -> str:
     # Manifest URL must be percent-encoded inside itms-services (especially ?token=...)
     encoded_manifest = quote(manifest_url, safe="")
@@ -64,6 +120,17 @@ def build_install_html(
             f'<img class="install-app-icon" src="{html.escape(icon_url)}" '
             f'alt="" width="72" height="72">\n      '
         )
+    badge_html = _configuration_badge(configuration)
+    version_label = f"{version} ({build_number})"
+    meta_rows = "".join(
+        [
+            _meta_row("Version", version_label),
+            _meta_row("Branch", branch),
+            _meta_row("Commit", commit),
+            _meta_row("Built", _format_build_date(build_date)),
+        ]
+    )
+    notes_html = _release_notes_block(release_notes)
     return f"""<!DOCTYPE html>
 <html lang="en">
 {base_head(f"{title} — Install", narrow=True)}
@@ -71,7 +138,13 @@ def build_install_html(
   <main class="page">
     <div class="install-card">
       {icon_html}<h1>{safe_title}</h1>
-      <p class="muted">Open this page in Safari on your iPhone to install.</p>
+      <div class="install-meta">
+        {badge_html}
+        <dl class="install-meta-list">
+          {meta_rows}
+        </dl>
+      </div>
+{notes_html}      <p class="muted">Open this page in Safari on your iPhone to install.</p>
       <div class="install-qr" aria-hidden="true">
         {qr_html}
         <p class="muted">Scan with iPhone camera</p>
@@ -96,6 +169,13 @@ def main() -> int:
     parser.add_argument("--bundle-version", required=True)
     parser.add_argument("--ipa-filename", default="app.ipa")
     parser.add_argument("--icon-filename", default="")
+    parser.add_argument("--version", required=True)
+    parser.add_argument("--build-number", required=True)
+    parser.add_argument("--branch", required=True)
+    parser.add_argument("--commit", required=True)
+    parser.add_argument("--build-date", required=True)
+    parser.add_argument("--configuration", required=True)
+    parser.add_argument("--release-notes", default="")
     parser.add_argument("--access-token", default="")
     args = parser.parse_args()
 
@@ -137,7 +217,14 @@ def main() -> int:
             manifest_url=manifest_url,
             ipa_url=ipa_url,
             install_page_url=install_page_url,
+            version=args.version,
+            build_number=args.build_number,
+            branch=args.branch,
+            commit=args.commit,
+            build_date=args.build_date,
+            configuration=args.configuration,
             icon_url=icon_url,
+            release_notes=args.release_notes,
         ),
         encoding="utf-8",
     )
