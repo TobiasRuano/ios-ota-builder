@@ -69,7 +69,7 @@ flowchart LR
 | F08 | Table metadata (size, duration, config) | 2 | P1 | S | Planned | [F08](roadmap-features.md#f08) |
 | F09 | Mobile-friendly dashboard layout | 2 | P2 | M | Planned | [F09](roadmap-features.md#f09) |
 | F10 | Commit links via `repo_url` | 2 | P2 | S | Planned | [F10](roadmap-features.md#f10) |
-| F11 | Dark mode | 2 | P3 | S | Planned | [F11](roadmap-features.md#f11) |
+| F11 | Dark mode | 2 | P3 | S | Done | [F11](roadmap-features.md#f11) |
 | F12 | Auto-increment build number | 1 | P0 | M | Done | [F12](roadmap-features.md#f12) |
 | F13 | Dirty git warning | 4 | P2 | S | Planned | [F13](roadmap-features.md#f13) |
 | F14 | Per-project build lock | 4 | P2 | S | Planned | [F14](roadmap-features.md#f14) |

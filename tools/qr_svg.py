@@ -34,13 +34,13 @@ def matrix_to_svg(
             px = (x + quiet_zone) * module_px
             py = (y + quiet_zone) * module_px
             rects.append(
-                f'<rect x="{px}" y="{py}" width="{module_px}" height="{module_px}" fill="#172033"/>'
+                f'<rect x="{px}" y="{py}" width="{module_px}" height="{module_px}" fill="var(--qr-fg)"/>'
             )
     rect_markup = "\n    ".join(rects)
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {view} {view}" '
         f'role="img" aria-label="QR code" width="{view}" height="{view}">\n'
-        f'  <rect width="{view}" height="{view}" fill="#ffffff"/>\n'
+        f'  <rect width="{view}" height="{view}" fill="var(--qr-bg)"/>\n'
         f"    {rect_markup}\n"
         f"</svg>"
     )
