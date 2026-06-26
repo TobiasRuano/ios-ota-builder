@@ -12,17 +12,26 @@ if [[ ! -f "$LOCAL_ENV" ]]; then
 fi
 
 TOKEN="$(openssl rand -hex 32)"
+CREATED_AT="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 
-if grep -q '^OTA_ACCESS_TOKEN=' "$LOCAL_ENV"; then
-  if [[ "$(uname)" == Darwin ]]; then
-    sed -i '' "s/^OTA_ACCESS_TOKEN=.*/OTA_ACCESS_TOKEN=${TOKEN}/" "$LOCAL_ENV"
+upsert_key() {
+  local key="$1"
+  local value="$2"
+  if grep -q "^${key}=" "$LOCAL_ENV"; then
+    if [[ "$(uname)" == Darwin ]]; then
+      sed -i '' "s|^${key}=.*|${key}=${value}|" "$LOCAL_ENV"
+    else
+      sed -i "s|^${key}=.*|${key}=${value}|" "$LOCAL_ENV"
+    fi
   else
-    sed -i "s/^OTA_ACCESS_TOKEN=.*/OTA_ACCESS_TOKEN=${TOKEN}/" "$LOCAL_ENV"
+    echo "${key}=${value}" >>"$LOCAL_ENV"
   fi
-else
-  echo "OTA_ACCESS_TOKEN=${TOKEN}" >>"$LOCAL_ENV"
-fi
+}
+
+upsert_key "OTA_ACCESS_TOKEN" "$TOKEN"
+upsert_key "OTA_TOKEN_CREATED_AT" "$CREATED_AT"
 chmod 600 "$LOCAL_ENV"
 
 echo "OTA_ACCESS_TOKEN rotated in $LOCAL_ENV"
+echo "OTA_TOKEN_CREATED_AT=${CREATED_AT}"
 echo "Restart server: $ROOT/server/restart_server.sh"

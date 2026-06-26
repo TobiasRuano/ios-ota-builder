@@ -244,6 +244,19 @@ def test_render_index_omits_restart_controls_without_token() -> None:
     assert 'data-restart-action="/api/server/restart' not in html
 
 
+def test_render_index_includes_logout_when_enabled() -> None:
+    data = {"generated_at": "2025-06-26T12:00:00Z", "projects": {}}
+    html = render_index(data, "https://ota.example.com", "secret", enable_logout=True)
+    assert 'action="/api/logout"' in html
+    assert "Sign out" in html
+
+
+def test_render_index_omits_logout_by_default() -> None:
+    data = {"generated_at": "2025-06-26T12:00:00Z", "projects": {}}
+    html = render_index(data, "https://ota.example.com", "secret")
+    assert 'action="/api/logout"' not in html
+
+
 def test_render_build_panel_includes_controls() -> None:
     from ota_index import render_build_panel
 
