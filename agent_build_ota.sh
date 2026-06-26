@@ -149,30 +149,20 @@ main() {
   INSTALL_URL="$(ota_url "$BASE_URL/$PROJECT_ID/$BUILD_DIR_NAME/install.html")"
   MANIFEST_URL="$(ota_url "$BASE_URL/$PROJECT_ID/$BUILD_DIR_NAME/manifest.plist")"
   IPA_URL="$(ota_url "$BASE_URL/$PROJECT_ID/$BUILD_DIR_NAME/app.ipa")"
+  DASHBOARD_URL="$(ota_url "${BASE_URL}/")"
 
   DURATION=$(($(date +%s) - START_EPOCH))
-  write_summary_json "success" "" "$DURATION" "$INSTALL_URL" "$MANIFEST_URL" "$IPA_URL" "$APP_VERSION" "$APP_BUILD"
+  write_summary_json "success" "" "$DURATION" "$INSTALL_URL" "$MANIFEST_URL" "$IPA_URL" "$APP_VERSION" "$APP_BUILD" "$DASHBOARD_URL"
 
-  # Regenerate index
-  if ! python3 "$OTA_BUILDER_ROOT/tools/generate_indexes.py" \
-    --ota-dir "$OTA_BUILDS_DIR" \
-    --projects-json "$OTA_BUILDER_ROOT/config/projects.json" \
-    --base-url "$BASE_URL" \
-    --access-token "${OTA_ACCESS_TOKEN:-}" \
-    >&2; then
+  if ! "$OTA_BUILDER_ROOT/scripts/cleanup_ota.sh" >&2; then
     FAILED_STAGE="index"
     exit "$EC_INDEX"
   fi
 
-  # Cleanup old builds
-  python3 "$OTA_BUILDER_ROOT/tools/cleanup_builds.py" \
-    --ota-dir "$OTA_BUILDS_DIR" \
-    --keep "${OTA_KEEP_BUILDS:-10}" \
-    --max-age-days "${OTA_MAX_AGE_DAYS:-14}" || true
-
   trap - EXIT
   log "=== Build succeeded in ${DURATION}s ==="
   log "Install: $INSTALL_URL"
+  log "Dashboard: $DASHBOARD_URL"
   print_result_json
 }
 

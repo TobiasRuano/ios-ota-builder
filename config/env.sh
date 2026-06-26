@@ -15,8 +15,8 @@ fi
 export OTA_BUILDER_ROOT="$(cd "$_CONFIG_DIR/.." && pwd)"
 export OTA_BUILDS_DIR="$OTA_BUILDER_ROOT/OTA-Builds"
 export OTA_PORT="${OTA_PORT:-8765}"
-export OTA_KEEP_BUILDS="${OTA_KEEP_BUILDS:-10}"
-export OTA_MAX_AGE_DAYS="${OTA_MAX_AGE_DAYS:-14}"
+export OTA_KEEP_BUILDS="${OTA_KEEP_BUILDS:-5}"
+export OTA_MAX_AGE_DAYS="${OTA_MAX_AGE_DAYS:-7}"
 export LAUNCHD_LABEL_PREFIX="${LAUNCHD_LABEL_PREFIX:-com.local.ios-ota-builder}"
 
 _LOCAL_ENV="$_CONFIG_DIR/local.env"

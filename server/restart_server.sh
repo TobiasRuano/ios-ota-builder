@@ -9,16 +9,22 @@ source "$ROOT/config/env.sh"
 
 PREFIX="${LAUNCHD_LABEL_PREFIX:-com.local.ios-ota-builder}"
 PLIST="$HOME/Library/LaunchAgents/${PREFIX}.ota-server.plist"
+PORT="${OTA_PORT:-8765}"
 
 if [[ ! -f "$PLIST" ]]; then
   "$ROOT/scripts/install_launchagents.sh"
 fi
 
+# Stop launchd job and any orphaned listener (bootout alone may leave old PIDs).
 launchctl bootout "gui/$(id -u)/${PREFIX}.ota-server" 2>/dev/null || true
+if lsof -ti ":${PORT}" -sTCP:LISTEN >/dev/null 2>&1; then
+  lsof -ti ":${PORT}" -sTCP:LISTEN | xargs kill 2>/dev/null || true
+  sleep 1
+fi
+
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
 sleep 2
 
-PORT="${OTA_PORT:-8765}"
 if [[ -n "${OTA_ACCESS_TOKEN:-}" ]]; then
   curl -sf "http://127.0.0.1:${PORT}/?token=${OTA_ACCESS_TOKEN}" >/dev/null
   echo "OTA server running on :${PORT} (auth enabled)"

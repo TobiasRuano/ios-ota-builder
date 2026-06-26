@@ -103,6 +103,7 @@ Preflight:
 ./server/restart_server.sh
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.local.ios-ota-builder.ota-server.plist
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.local.ios-ota-builder.ota-cloudflared.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.local.ios-ota-builder.ota-cleanup.plist
 ```
 
 Verificar:
@@ -115,7 +116,28 @@ curl -I "https://ota.yourdomain.com/?token=$OTA_ACCESS_TOKEN"    # → 200
 
 ---
 
-## 6. Symlink opcional
+## 6. Retención y dashboard
+
+Variables en `config/local.env`:
+
+```bash
+OTA_KEEP_BUILDS=5      # máximo por proyecto
+OTA_MAX_AGE_DAYS=7     # antigüedad máxima
+```
+
+- Limpieza automática al final de cada build y diaria a las 03:00 (`ota-cleanup` LaunchAgent).
+- El dashboard (`dashboard_url` en el JSON del build) lista solo builds con IPA en disco.
+- Botón **Delete** en cada fila: borra del disco y desaparece del listado (funciona desde iPhone).
+
+Forzar limpieza manual:
+
+```bash
+./scripts/cleanup_ota.sh
+```
+
+---
+
+## 7. Symlink opcional
 
 ```bash
 mkdir -p ~/bin
@@ -124,12 +146,13 @@ ln -sf "$(pwd)/agent_build_ota.sh" ~/bin/agent_build_ota
 
 ---
 
-## 7. Primer build
+## 8. Primer build
 
 ```bash
 ./agent_build_ota.sh my-app
-./scripts/print_install_url.sh my-app
 ```
+
+El JSON de salida incluye `install_url` y `dashboard_url` — no hace falta correr scripts extra.
 
 ---
 
@@ -164,4 +187,6 @@ Logs de fallo: `OTA-Builds/<project>/<build>/diagnostics.md`
 ./server/restart_server.sh
 ```
 
-Recompilá builds para que los `install_url` usen el token nuevo.
+El token **no expira solo**. Es un secreto fijo en `config/local.env` hasta que lo rotés manualmente con `./scripts/generate_access_token.sh`. Podés guardar el `dashboard_url` en favoritos sin problema.
+
+Solo deja de funcionar si rotás el token (entonces necesitás el nuevo link del agente o `./scripts/print_dashboard_url.sh`).

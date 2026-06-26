@@ -8,7 +8,9 @@ You are building an iOS app that will be installed over-the-air (Ad Hoc) on an i
 2. **Pass `project-id`, never a repo path.** The pipeline resolves paths from `config/projects.json`.
 3. **The pipeline does not modify source code.** You fix code; the pipeline builds and publishes.
 4. **Maximum 3 build attempts** per task. After each failure, read `diagnostics.md` in the build output folder.
-5. **Return the `install_url`** from the JSON output to the user when the build succeeds.
+5. **Return `install_url` and `dashboard_url`** from the JSON output when the build succeeds.
+   - `install_url` — for the user to install this build on iPhone (Safari).
+   - `dashboard_url` — to browse, download, or delete past builds (bookmark once).
 
 ## Build command
 
@@ -47,7 +49,7 @@ Parse JSON stdout
     ↓
 If status == "failure" → read diagnostics.md → fix code → retry (max 3)
     ↓
-Return install_url to user
+Return install_url + dashboard_url to user
 ```
 
 ## Success output (JSON)
@@ -60,6 +62,7 @@ Return install_url to user
   "commit": "abc1234",
   "duration_seconds": 312,
   "install_url": "https://ota.example.com/my-app/2026-06-25_2015_main/install.html?token=...",
+  "dashboard_url": "https://ota.example.com/?token=...",
   "manifest_url": "https://...",
   "ipa_url": "https://..."
 }
@@ -103,4 +106,4 @@ The iPhone UDID must be registered in the Ad Hoc provisioning profile.
 - Private secrets: `config/local.env` (see `./scripts/setup.sh`)
 - App registry: `config/projects.json` (copy from `projects.json.example`)
 
-**Important:** Share only `install_url` values from build output — they include the access token required for OTA install on iPhone.
+**Important:** `install_url` and `dashboard_url` include the access token. Treat them like passwords.

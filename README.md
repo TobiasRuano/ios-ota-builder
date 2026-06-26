@@ -80,11 +80,19 @@ Apps soportadas: `.xcodeproj`, Swift Package Manager, **sin** CocoaPods ni `.xcw
 ./agent_build_ota.sh ~/Developer/my-app
 ```
 
-Obtener link de install:
+Obtener link de install (último build de un proyecto):
 
 ```bash
 ./scripts/print_install_url.sh my-app
 ```
+
+Ver **todos** los builds (dashboard con Install / IPA / logs por proyecto):
+
+```bash
+./scripts/print_dashboard_url.sh
+```
+
+Abrí esa URL en el navegador y guardala como bookmark. Sin `?token=...` todo el servidor responde **401**.
 
 ---
 
@@ -112,12 +120,34 @@ Variables principales en `config/local.env`:
 
 ---
 
-## Autenticación
+## Autenticación y dashboard
 
-- El servidor OTA requiere token en query (`?token=...`) o header `Authorization: Bearer <token>`.
-- Sin token → **401 Unauthorized**.
-- Compartí solo los `install_url` generados por el pipeline (incluyen el token).
-- Rotar token: `./scripts/generate_access_token.sh` y `./server/restart_server.sh`.
+El servidor OTA está **completamente** detrás de un token compartido:
+
+- Sin `?token=...` → **401** en cualquier ruta.
+- Con token → dashboard dinámico en `/` con todos los builds (Install, IPA, Log, **Delete**).
+
+Tras cada build, el JSON de stdout incluye:
+
+- `install_url` — para instalar en iPhone (Safari).
+- `dashboard_url` — para ver, descargar o borrar builds pasados (bookmark una vez).
+
+No hace falta terminal: el agente devuelve ambos links en el chat.
+
+---
+
+## Retención de builds
+
+Por defecto (`config/local.env`):
+
+| Variable | Default | Efecto |
+|----------|---------|--------|
+| `OTA_KEEP_BUILDS` | `5` | Máximo de builds por proyecto |
+| `OTA_MAX_AGE_DAYS` | `7` | Borra builds más viejos |
+
+Se ejecuta al final de cada build y **diariamente a las 03:00** (LaunchAgent `ota-cleanup`).
+
+El dashboard refleja el disco al instante: borrado manual en Finder o botón **Delete** en la web.
 
 ---
 
@@ -128,6 +158,7 @@ Variables principales en `config/local.env`:
 ./server/restart_server.sh
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.local.ios-ota-builder.ota-server.plist
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.local.ios-ota-builder.ota-cloudflared.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.local.ios-ota-builder.ota-cleanup.plist
 ```
 
 ---
@@ -139,7 +170,7 @@ Instrucciones: [`docs/AGENT_INSTRUCTIONS.md`](docs/AGENT_INSTRUCTIONS.md)
 1. **Nunca** ejecutar `xcodebuild` directo
 2. Usar `agent_build_ota.sh <project-id>`
 3. Si falla: leer `diagnostics.md`, corregir código, reintentar (máx. 3)
-4. Devolver `install_url` al usuario
+4. Devolver `install_url` y `dashboard_url` al usuario
 
 ---
 
