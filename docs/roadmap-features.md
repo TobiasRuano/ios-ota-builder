@@ -4,6 +4,35 @@ Detailed implementation specs for each planned improvement. See [`roadmap.md`](r
 
 ---
 
+<a id="pipeline-sequence"></a>
+## Pipeline publish sequence (canonical)
+
+Current order in [`agent_build_ota.sh`](../agent_build_ota.sh) — new features must respect this unless the pipeline is intentionally reordered:
+
+| Step | Action | Notes |
+|------|--------|-------|
+| 1 | `load_config` / `load_project` / `git_metadata` | Signing can fail here (no `BUILD_OUTPUT_DIR` yet) |
+| 2 | `check_disk_space` → `mkdir -p OTA_BUILDS_DIR` | Dry-run may create empty `OTA-Builds/` root only |
+| 3 | `verify_signing.sh` | |
+| 4 | `make_build_dir` | |
+| 5 | *(F12)* `resolve_build_number.sh` | May modify `CFBundleVersion` in app repo |
+| 6 | `build_archive.sh` / `export_ipa.sh` | |
+| 7 | *(F04)* extract `icon.png` | |
+| 8 | *(F23 / F05)* changelog + release notes | **Before** manifest — needed on `install.html` |
+| 9 | `generate_manifest.py` | Writes `install.html` + `manifest.plist` |
+| 10 | `write_summary_json` | |
+| 11 | `cleanup_ota.sh` | |
+
+**Cross-feature rules**
+
+- Do not read `summary.json` before step 10; pass display metadata via CLI args or env.
+- Static assets (`icon.png`, logs) served by the token-protected server need authenticated URLs (`ota_url` / `with_access_token`).
+- Failure notifications (F15) must run for **any** non-zero exit, including steps 1–3 — not only inside `cleanup_on_fail` when `BUILD_OUTPUT_DIR` exists.
+- F12 makes the app repo dirty by design; F13 `OTA_FAIL_ON_DIRTY` must ignore build-number-only changes or run the dirty check before step 5.
+- Prefer `collect_builds()` or the dynamic `GET /builds.json` endpoint over the static `OTA-Builds/builds.json` file (stale after dashboard deletes).
+
+---
+
 ## Install experience
 
 <a id="f01"></a>
@@ -163,9 +192,9 @@ After archive, extract the largest app icon from `app.xcarchive`:
 
 1. Locate `Products/Applications/*.app/AppIcon*.png` or parse `Assets.car` (simpler path: read `Info.plist` + known icon paths)
 2. Copy a 120×120 (or 180×180) PNG to `<build-dir>/icon.png`
-3. Reference in `install.html` and dashboard via `<img src=".../icon.png">`
+3. Reference in `install.html` and dashboard via authenticated URLs, e.g. `ota_url("$BASE_URL/$PROJECT_ID/$BUILD_DIR_NAME/icon.png")` or `with_access_token(...)` — bare `icon.png` paths return **401** on the token-protected server.
 
-Store `icon_url` in `summary.json`.
+Store tokenless `icon_path` (e.g. `/my-app/.../icon.png`) in `summary.json` for display; use `ota_url` when rendering `<img src>` in HTML.
 
 **Files likely touched**
 
@@ -181,8 +210,8 @@ None.
 **Acceptance criteria**
 
 - [ ] `icon.png` exists in build output after successful archive
-- [ ] Install page shows app icon above title
-- [ ] Dashboard shows icon next to project name or latest build
+- [ ] Install page shows app icon above title (image URL includes auth token)
+- [ ] Dashboard shows icon next to project name or latest build (authenticated URL)
 - [ ] Graceful fallback if icon extraction fails (build still succeeds)
 
 **Notes**  
@@ -210,6 +239,9 @@ Two input modes:
 2. **Automatic:** git log from previous successful build’s commit to `HEAD` (one line per commit, max 20)
 
 Render notes on install page and optionally in dashboard tooltip/expandable row.
+
+**Pipeline order**  
+Compute release notes at **step 8** (before `generate_manifest.py`). Pass into the manifest generator via CLI — same timing as F23 changelog.
 
 **Files likely touched**
 
@@ -510,7 +542,7 @@ Use a portable advisory lock (e.g. atomic `mkdir` on a lock directory, as in the
 - [ ] Documented in SETUP.md as intentional pipeline side effect
 
 **Notes**  
-This is the only planned feature that touches project source (build number only), contradicting the general “pipeline does not modify source” rule — document the exception.
+This is the only planned feature that touches project source (build number only), contradicting the general “pipeline does not modify source” rule. When implementing, update [`README.md`](../README.md) and [`docs/AGENT_INSTRUCTIONS.md`](AGENT_INSTRUCTIONS.md) to document the exception. Coordinate with F13 so `OTA_FAIL_ON_DIRTY` does not block builds after an auto-increment bump.
 
 ---
 
@@ -528,7 +560,9 @@ This is the only planned feature that touches project source (build number only)
 Easy to publish a build that does not match any commit, making reproduction impossible.
 
 **Proposed solution**  
-In `git_metadata()` or preflight: if `git status --porcelain` is non-empty in `PROJECT_PATH`, log a prominent warning (yellow `[WARN]`). Optional `OTA_FAIL_ON_DIRTY=1` in `local.env` to hard-fail.
+In `git_metadata()` or preflight (before archive, ideally **before F12** build-number bump): if `git status --porcelain` is non-empty in `PROJECT_PATH`, log a prominent warning (yellow `[WARN]`). Optional `OTA_FAIL_ON_DIRTY=1` in `local.env` to hard-fail.
+
+When F12 is enabled, **exclude build-number-only changes** from the dirty check (or snapshot status before step 5 and diff afterward) so auto-increment does not trip fail-on-dirty on every subsequent build.
 
 **Files likely touched**
 
@@ -542,7 +576,7 @@ None.
 
 - [ ] Dirty tree prints warning before archive starts
 - [ ] Clean tree produces no warning
-- [ ] `OTA_FAIL_ON_DIRTY=1` exits with `EC_ENVIRONMENT`
+- [ ] `OTA_FAIL_ON_DIRTY=1` exits with `EC_ENVIRONMENT` (except build-number-only changes when F12 is on)
 - [ ] Warning includes count of modified/untracked files
 
 ---
@@ -597,15 +631,17 @@ Shares locking pattern with F12 counter file.
 Archive + export can take several minutes; you switch context and miss when the build finishes.
 
 **Proposed solution**  
-On pipeline exit (success or failure):
+On **any** pipeline exit (success or failure):
 
 1. **macOS notification** via `osascript` (always on by default, disable with `OTA_NOTIFY=0`)
 2. **Optional webhook** — `OTA_WEBHOOK_URL` POSTs JSON with **tokenless** fields only, e.g. `{ status, project, duration_seconds, stage, install_path }` where `install_path` is the path without query string (`/my-app/.../install.html`). Never POST `install_url` or `dashboard_url` from `ota_url()` — those include `?token=...` and would leak the OTA access token to Slack/Discord logs. Authenticate the webhook with a separate `OTA_WEBHOOK_SECRET` header if needed.
 
+Register `notify_build_result` on an `EXIT` trap that runs regardless of `BUILD_OUTPUT_DIR` — signing and environment failures happen before `make_build_dir`, so `cleanup_on_fail` alone is insufficient.
+
 **Files likely touched**
 
 - `scripts/lib/common.sh` — `notify_build_result()`
-- `agent_build_ota.sh` — call in success path and `cleanup_on_fail`
+- `agent_build_ota.sh` — `trap notify_build_result EXIT` (or call from both success path and a top-level failure trap)
 - `config/local.env.example`
 
 **Dependencies**  
@@ -614,7 +650,8 @@ None.
 **Acceptance criteria**
 
 - [ ] Success shows macOS notification with app name
-- [ ] Failure shows notification with stage (archive/export/etc.)
+- [ ] Failure shows notification with stage (archive/export/signing/etc.)
+- [ ] Failure notification fires for signing/preflight failures (before `make_build_dir`)
 - [ ] Webhook fires only when `OTA_WEBHOOK_URL` is set
 - [ ] Webhook payload never includes `?token=` or the OTA access token
 - [ ] macOS notifications never include full token in the body (truncate or omit)
@@ -837,15 +874,17 @@ No single command to answer “is everything OK?”
 `scripts/ota_status.sh` prints:
 
 - Registered projects (id, display name, path exists?)
-- Last successful build per project (version, date, install URL)
+- Last successful build per project (version, date, install path — print `install_path` without token; user adds `?token=` locally or uses `print_install_url.sh`)
 - Disk free space
 - Local server reachable (`serve_check.sh`)
 - Optional JSON mode `--json`
 
+Read build state via `collect_builds()` in Python or `GET /builds.json` on the running server — **not** the static `OTA-Builds/builds.json` file (stale after dashboard deletes; server serves dynamic JSON).
+
 **Files likely touched**
 
 - New: `scripts/ota_status.sh`
-- Reuse: `scripts/serve_check.sh`, `scripts/lib/common.sh`, `tools/ota_index.py` logic or `builds.json`
+- Reuse: `scripts/serve_check.sh`, `scripts/lib/common.sh`, `tools/ota_index.py` (`collect_builds`)
 
 **Dependencies**  
 None.
@@ -912,17 +951,18 @@ F21 for `ota-status`.
 No structured record of what changed between OTA publishes.
 
 **Proposed solution**  
-At end of successful build, compute `git log <prev_commit>..HEAD --oneline` where `prev_commit` is from the previous successful build’s `commit_full` in `summary.json`. Store array in `summary.json`:
+At **step 8** (before `generate_manifest.py`), compute `git log <prev_commit>..HEAD --oneline` where `prev_commit` is from the previous successful build’s `commit_full` in `summary.json`. Store array in `summary.json` at step 10:
 
 ```json
 "changelog": ["abc1234 Fix login", "def5678 Update copy"]
 ```
 
-Expose in dashboard expandable section and feed F05 release notes.
+Expose in dashboard expandable section and pass the same text to F05 release notes for `install.html`.
 
 **Files likely touched**
 
-- `scripts/lib/common.sh`
+- `scripts/lib/common.sh` — `collect_changelog()` called before manifest
+- `agent_build_ota.sh` — reorder: changelog → manifest → summary
 - `tools/ota_index.py`
 - `tools/generate_manifest.py`
 
@@ -952,7 +992,7 @@ F10 helps link individual commits.
 Retention deletes old builds automatically; sometimes you need one build to stay (beta sent to a tester).
 
 **Proposed solution**  
-Add `pinned: true` to `summary.json` via dashboard “Pin” button (POST `/api/builds/pin`) or CLI `agent_build_ota.sh --pin-last`. `cleanup_builds.py` skips pinned dirs. Show pin icon in dashboard; unpin reverses.
+Add `pinned: true` to `summary.json` via dashboard “Pin” button (POST `/api/builds/pin`) or CLI `agent_build_ota.sh --pin-last <project-id>` after a build. `cleanup_builds.py` skips pinned dirs. Show pin icon in dashboard; unpin reverses.
 
 **Files likely touched**
 
@@ -969,6 +1009,7 @@ None.
 - [ ] Pinned builds survive retention sweeps
 - [ ] Unpinned builds still respect `OTA_KEEP_BUILDS` / `OTA_MAX_AGE_DAYS`
 - [ ] Pin state visible in dashboard
+- [ ] `--pin-last <project-id>` targets the correct project in multi-app setups
 - [ ] Cannot pin non-existent build
 
 ---
@@ -989,11 +1030,16 @@ None.
 Every build requires manually running `agent_build_ota.sh` or asking an agent.
 
 **Proposed solution**  
-Local git hook or small HTTP listener on the Mac:
+Trigger builds from the Mac without a remote `post-receive` hook (that only runs on the **server** when `git-receive-pack` accepts a push, not in a local working clone):
 
-- `post-receive` / `launchd` + `fswatch` on registered repo paths
+| Approach | When to use |
+|----------|-------------|
+| **`pre-push` hook** in each app repo | Local trigger before push to GitHub/GitLab |
+| **`fswatch` + `launchd`** | Rebuild when files change on disk |
+| **HTTP webhook listener** (`build_webhook.py`) | External CI or GitHub webhook POST to the Mac |
+
 - Filter: only `main` or `develop`, debounce 60s
-- Invokes `agent_build_ota.sh` for matching `project-id`
+- Invokes `agent_build_ota.sh <project-id>` for the matching registered project
 - Optional shared secret for HTTP trigger
 
 **Files likely touched**
@@ -1095,7 +1141,7 @@ F20 (build detail UX).
 Server health and last build status require opening a browser or terminal.
 
 **Proposed solution**  
-Small Swift/SwiftUI menu bar app (separate target or repo) that polls `/health` and `/builds.json` (with token from Keychain or env file). Shows: server up/down, last build per app, click to open dashboard.
+Small Swift/SwiftUI menu bar app (separate target or repo) that polls unauthenticated `GET /health` and authenticated dynamic `GET /builds.json` (token from Keychain or `local.env`). Shows: server up/down, last build per app, click to open dashboard.
 
 **Files likely touched**
 
@@ -1122,6 +1168,10 @@ Largest scope item — consider a separate repository to keep ios-ota-builder sh
 ### Cross-linking
 
 Feature sections use explicit HTML anchors (`<a id="f01"></a>`, …) so links from [`roadmap.md`](roadmap.md) work reliably in GitHub-rendered Markdown (headings with backticks, slashes, or `--flags` produce unpredictable auto-generated fragments).
+
+### Pipeline timing
+
+See [Pipeline publish sequence (canonical)](#pipeline-sequence) at the top of this document before implementing any feature that touches `agent_build_ota.sh`, `install.html`, or `summary.json`.
 
 ### Dynamic vs static pages
 

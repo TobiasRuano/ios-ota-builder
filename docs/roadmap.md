@@ -21,6 +21,8 @@ All items below start as **Planned**.
 
 ## Phases
 
+The **Phase** column in the summary table below is canonical. The diagram is illustrative.
+
 ```mermaid
 flowchart LR
   subgraph phase1 [Phase1_QuickWins]
