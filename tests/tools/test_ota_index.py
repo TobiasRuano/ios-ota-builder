@@ -256,8 +256,22 @@ def test_render_build_panel_includes_controls() -> None:
         jobs_url="/api/builds/jobs?token=secret",
     )
     assert "build-panel" in html
+    assert 'id="build-panel-my-app"' in html
+    assert " hidden" in html
     assert "Start build" in html
+    assert "btn-build-cancel" in html
     assert 'data-project-id="my-app"' in html
+    assert "build-panel-title" not in html
+
+
+def test_render_build_toggle_button() -> None:
+    from ota_index import render_build_toggle_button
+
+    html = render_build_toggle_button("my-app")
+    assert 'class="btn-new-build-toggle"' in html
+    assert 'aria-controls="build-panel-my-app"' in html
+    assert 'aria-expanded="false"' in html
+    assert "New build" in html
 
 
 def test_render_index_includes_build_panel_when_token_present() -> None:
@@ -267,6 +281,8 @@ def test_render_index_includes_build_panel_when_token_present() -> None:
     }
     html = render_index(data, "https://ota.example.com", "secret")
     assert "build-panel" in html
+    assert 'class="build-panel" id="build-panel-my-app" hidden' in html
+    assert "btn-new-build-toggle" in html
     assert "btn-build-start" in html
     assert "/api/builds/trigger?token=secret" in html
     assert "window.__OTA_TOKEN" in html

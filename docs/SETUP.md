@@ -140,7 +140,7 @@ OTA_STATUS_MIN_DISK_MB=5000   # ota-status warns/exits if free space below this 
 - **Server status panel** (footer on the dashboard): free disk space (GB and % used), server uptime, builds-dir writable flag, and optional tunnel reachability (`OTA_STATUS_PROBE_TUNNEL=1`). Low-disk warning when free space is below `OTA_STATUS_MIN_DISK_MB`. Refreshes on each page load.
 - Failed builds count toward `OTA_KEEP_BUILDS` and `OTA_MAX_AGE_DAYS` like successful builds.
 - **Delete** button on each row: removes from disk and disappears from the list (works from iPhone).
-- **New build panel** (F29): start an OTA build from the dashboard — pick branch, git mode (auto / checkout / stash / worktree), and configuration. Requires token auth. See [Dashboard builds](#dashboard-builds-f29) below.
+- **New build panel** (F29): start an OTA build from the dashboard — click **New build** on a project card to open the form, then pick branch, git mode (auto / checkout / stash / worktree), and configuration. Requires token auth. See [Dashboard builds](#dashboard-builds-f29) below.
 
 Force manual cleanup:
 
@@ -164,7 +164,7 @@ Or only the F15 shell tests: `./scripts/test_notify_build_result.sh`
 
 ### Dashboard builds (F29)
 
-Each project card on the dashboard includes a **New build** panel when accessed with a valid token. You can:
+Each project card on the dashboard includes a **New build** button in the header when accessed with a valid token. Click it to open the build form. You can:
 
 - View current git branch, commit, and dirty-file count (same rules as F13)
 - **Fetch remotes** to refresh the branch list

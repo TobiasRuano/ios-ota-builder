@@ -257,6 +257,47 @@ _BUILD_SCRIPT = """<script>
     }
   }
 
+  function findPanelForToggle(toggle) {
+    var panelId = toggle.getAttribute("aria-controls");
+    if (panelId) {
+      var byId = document.getElementById(panelId);
+      if (byId) return byId;
+    }
+    var card = toggle.closest(".project-card");
+    return card ? card.querySelector(".build-panel") : null;
+  }
+
+  function findToggleForPanel(panel) {
+    var panelId = panel.id;
+    if (!panelId) return null;
+    var card = panel.closest(".project-card");
+    if (!card) return null;
+    return card.querySelector('.btn-new-build-toggle[aria-controls="' + panelId + '"]');
+  }
+
+  function openBuildPanel(panel) {
+    panel.hidden = false;
+    var toggle = findToggleForPanel(panel);
+    if (toggle) toggle.setAttribute("aria-expanded", "true");
+    if (!panel.dataset.statusLoaded) {
+      loadGitStatus(panel);
+    }
+  }
+
+  function closeBuildPanel(panel) {
+    panel.hidden = true;
+    var toggle = findToggleForPanel(panel);
+    if (toggle) toggle.setAttribute("aria-expanded", "false");
+  }
+
+  function toggleBuildPanel(panel) {
+    if (panel.hidden) {
+      openBuildPanel(panel);
+    } else {
+      closeBuildPanel(panel);
+    }
+  }
+
   function loadGitStatus(panel) {
     var projectId = panel.getAttribute("data-project-id");
     var statusUrl = panel.getAttribute("data-git-status-url");
@@ -268,6 +309,7 @@ _BUILD_SCRIPT = """<script>
           setStatus(panel, data.error, true);
           return;
         }
+        panel.dataset.statusLoaded = "1";
         var branch = data.branch || "unknown";
         var commit = data.commit || "unknown";
         var parts = [branch + " @ " + commit];
@@ -340,9 +382,34 @@ _BUILD_SCRIPT = """<script>
     check();
   }
 
-  document.querySelectorAll(".build-panel").forEach(loadGitStatus);
+  document.querySelectorAll(".build-panel").forEach(function (panel) {
+    var statusUrl = panel.getAttribute("data-git-status-url");
+    if (!statusUrl) return;
+    fetch(apiUrl(statusUrl))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.active_job && data.active_job.id) {
+          openBuildPanel(panel);
+        }
+      })
+      .catch(function () {});
+  });
 
   document.addEventListener("click", function (e) {
+    var toggleBtn = e.target.closest(".btn-new-build-toggle");
+    if (toggleBtn) {
+      var togglePanel = findPanelForToggle(toggleBtn);
+      if (togglePanel) toggleBuildPanel(togglePanel);
+      return;
+    }
+
+    var cancelBtn = e.target.closest(".btn-build-cancel");
+    if (cancelBtn) {
+      var cancelPanel = cancelBtn.closest(".build-panel");
+      if (cancelPanel) closeBuildPanel(cancelPanel);
+      return;
+    }
+
     var fetchBtn = e.target.closest(".btn-build-fetch");
     if (fetchBtn) {
       var panel = fetchBtn.closest(".build-panel");
@@ -998,6 +1065,24 @@ def render_status_panel(status: dict, *, restart_action: str = "") -> str:
     )
 
 
+def render_build_toggle_button(project_id: str) -> str:
+    pid = html.escape(project_id)
+    panel_id = f"build-panel-{pid}"
+    return (
+        f'<button type="button" class="btn-new-build-toggle" '
+        f'aria-expanded="false" aria-controls="{panel_id}">New build</button>'
+    )
+
+
+def _wrap_header_actions(*actions: str) -> str:
+    parts = [action for action in actions if action]
+    if not parts:
+        return ""
+    if len(parts) == 1:
+        return parts[0]
+    return f'<div class="project-header-actions">{"".join(parts)}</div>'
+
+
 def render_build_panel(
     project_id: str,
     *,
@@ -1008,14 +1093,14 @@ def render_build_panel(
     jobs_url: str,
 ) -> str:
     pid = html.escape(project_id)
+    panel_id = f"build-panel-{pid}"
     return (
-        f'<div class="build-panel" data-project-id="{pid}" '
+        f'<div class="build-panel" id="{panel_id}" hidden data-project-id="{pid}" '
         f'data-trigger-url="{html.escape(trigger_url)}" '
         f'data-git-status-url="{html.escape(git_status_url)}" '
         f'data-git-branches-url="{html.escape(git_branches_url)}" '
         f'data-git-fetch-url="{html.escape(git_fetch_url)}" '
         f'data-jobs-url="{html.escape(jobs_url)}">'
-        '<p class="build-panel-title">New build</p>'
         '<p class="build-git-status build-panel-status muted">Loading git status…</p>'
         '<div class="build-panel-grid">'
         '<div class="build-panel-field">'
@@ -1045,6 +1130,7 @@ def render_build_panel(
         '<div class="build-panel-actions">'
         '<button type="button" class="btn-build-start">Start build</button>'
         '<button type="button" class="btn-build-secondary btn-build-fetch">Fetch remotes</button>'
+        '<button type="button" class="btn-build-secondary btn-build-cancel">Cancel</button>'
         "</div>"
         '<p class="build-panel-progress" aria-live="polite"></p>'
         "</div>"
@@ -1114,7 +1200,9 @@ def render_index(
         builds = project.get("builds", [])
 
         build_panel_html = ""
+        build_toggle_html = ""
         if build_enabled:
+            build_toggle_html = render_build_toggle_button(project_id)
             build_panel_html = render_build_panel(
                 project_id,
                 trigger_url=trigger_url,
@@ -1125,23 +1213,29 @@ def render_index(
             )
 
         if not builds:
+            header_actions = _wrap_header_actions(build_toggle_html)
             sections.append(
                 f'<section class="project-card">'
-                f'<div class="project-card-header"><h2>{display}</h2></div>'
+                f'<div class="project-card-header"><h2>{display}</h2>{header_actions}</div>'
                 f"{build_panel_html}"
                 '<p class="empty-state">No builds yet.</p></section>'
             )
             continue
 
         has_successful = any(b.get("status") == "success" for b in builds)
-        header_actions = ""
+        header_action_parts: list[str] = []
+        if build_toggle_html:
+            header_action_parts.append(build_toggle_html)
         if has_successful:
             latest_install_url = u(f"{base}/latest/{project_id}")
-            header_actions = _copy_button(
-                latest_install_url,
-                aria_label=f"Copy latest install link for {project.get('display_name', project_id)}",
-                label="Copy latest",
+            header_action_parts.append(
+                _copy_button(
+                    latest_install_url,
+                    aria_label=f"Copy latest install link for {project.get('display_name', project_id)}",
+                    label="Copy latest",
+                )
             )
+        header_actions = _wrap_header_actions(*header_action_parts)
 
         project_icon_html = ""
         icon_build = _project_icon_build(builds)
