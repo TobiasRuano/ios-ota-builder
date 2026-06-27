@@ -220,11 +220,74 @@ _BUILD_SCRIPT_BODY = """
     el.classList.toggle("warn", !!isWarn);
   }
 
+  function setWorkspaceDetail(panel, html, isWarn) {
+    var el = panel.querySelector(".git-workspace-detail");
+    if (!el) return;
+    el.innerHTML = html;
+    el.classList.toggle("warn", !!isWarn);
+  }
+
   function setProgress(panel, text, active) {
     var el = panel.querySelector(".build-panel-progress");
     if (!el) return;
     el.textContent = text || "";
     el.classList.toggle("is-active", !!active);
+  }
+
+  function syncStatusLabel(status) {
+    var map = {
+      in_sync: "In sync",
+      behind: "Behind remote",
+      ahead: "Ahead of remote",
+      diverged: "Diverged",
+      unknown: "Unknown"
+    };
+    return map[status] || status || "Unknown";
+  }
+
+  function syncStatusClass(status) {
+    if (status === "in_sync") return "git-sync-ok";
+    if (status === "behind") return "git-sync-warn";
+    if (status === "ahead" || status === "diverged") return "git-sync-danger";
+    return "git-sync-muted";
+  }
+
+  function findProjectPanels(projectId) {
+    return {
+      build: document.getElementById("build-panel-" + projectId),
+      workspace: document.getElementById("git-workspace-panel-" + projectId)
+    };
+  }
+
+  function getGitParamsFromPanel(panel) {
+    return {
+      branch: ((panel.querySelector(".git-branch-select") || {}).value || ""),
+      gitMode: ((panel.querySelector(".git-mode-select") || {}).value || "auto"),
+      syncStrategy: ((panel.querySelector(".git-sync-strategy") || {}).value || "match_remote")
+    };
+  }
+
+  function syncGitFields(sourcePanel) {
+    var projectId = sourcePanel.getAttribute("data-project-id");
+    if (!projectId) return;
+    var panels = findProjectPanels(projectId);
+    var params = getGitParamsFromPanel(sourcePanel);
+    [panels.build, panels.workspace].forEach(function (target) {
+      if (!target || target === sourcePanel) return;
+      var branchSel = target.querySelector(".git-branch-select");
+      var modeSel = target.querySelector(".git-mode-select");
+      var stratSel = target.querySelector(".git-sync-strategy");
+      if (branchSel && branchSel.value !== params.branch) branchSel.value = params.branch;
+      if (modeSel && modeSel.value !== params.gitMode) modeSel.value = params.gitMode;
+      if (stratSel && stratSel.value !== params.syncStrategy) stratSel.value = params.syncStrategy;
+    });
+  }
+
+  function workspaceQuery(panel) {
+    var params = getGitParamsFromPanel(panel);
+    return "branch=" + encodeURIComponent(params.branch)
+      + "&git_mode=" + encodeURIComponent(params.gitMode)
+      + "&strategy=" + encodeURIComponent(params.syncStrategy);
   }
 
   function renderPreflightResults(panel, data) {
@@ -431,7 +494,7 @@ _BUILD_SCRIPT_BODY = """
       if (byId) return byId;
     }
     var card = toggle.closest(".project-card");
-    return card ? card.querySelector(".build-panel") : null;
+    return card ? card.querySelector(".build-panel, .git-workspace-panel") : null;
   }
 
   function findToggleForPanel(panel) {
@@ -439,80 +502,158 @@ _BUILD_SCRIPT_BODY = """
     if (!panelId) return null;
     var card = panel.closest(".project-card");
     if (!card) return null;
-    return card.querySelector('.btn-new-build-toggle[aria-controls="' + panelId + '"]');
+    return card.querySelector('[aria-controls="' + panelId + '"]');
   }
 
-  function openBuildPanel(panel) {
+  function openPanel(panel) {
     panel.hidden = false;
     var toggle = findToggleForPanel(panel);
     if (toggle) toggle.setAttribute("aria-expanded", "true");
     if (!panel.dataset.statusLoaded) {
-      loadGitStatus(panel);
+      loadWorkspaceStatus(panel);
     }
   }
 
-  function closeBuildPanel(panel) {
+  function closePanel(panel) {
     panel.hidden = true;
     var toggle = findToggleForPanel(panel);
     if (toggle) toggle.setAttribute("aria-expanded", "false");
   }
 
-  function toggleBuildPanel(panel) {
+  function togglePanel(panel) {
     if (panel.hidden) {
-      openBuildPanel(panel);
+      openPanel(panel);
     } else {
-      closeBuildPanel(panel);
+      closePanel(panel);
     }
   }
 
-  function loadGitStatus(panel) {
+  function openBuildPanel(panel) { openPanel(panel); }
+  function closeBuildPanel(panel) { closePanel(panel); }
+  function toggleBuildPanel(panel) { togglePanel(panel); }
+
+  function renderWorkspaceDetail(data) {
+    var ws = data.build_workspace || {};
+    var remote = data.remote || {};
+    var status = data.sync_status || "unknown";
+    var statusCls = syncStatusClass(status);
+    var lines = [
+      '<div class="git-workspace-grid">',
+      '<div><span class="git-workspace-label">Build workspace</span>',
+      '<code class="git-workspace-path">' + escapeHtml(ws.path || "—") + "</code></div>",
+      '<div><span class="git-workspace-label">Workspace HEAD</span>',
+      '<span>' + escapeHtml((ws.branch || "?") + " @ " + (ws.commit || "unknown")) + "</span></div>",
+      '<div><span class="git-workspace-label">Remote (' + escapeHtml(remote.name || "origin") + ")</span>",
+      '<span>' + escapeHtml((remote.branch || "?") + " @ " + (remote.commit || "unknown")) + "</span>",
+      (remote.subject ? ' <span class="git-workspace-subject">' + escapeHtml(remote.subject) + "</span>" : ""),
+      "</div>",
+      '<div><span class="git-workspace-label">Sync status</span>',
+      '<span class="' + statusCls + '">' + escapeHtml(syncStatusLabel(status)) + "</span>",
+      (data.commits_behind ? ' <span class="git-sync-meta">(' + data.commits_behind + " behind)</span>" : ""),
+      (data.commits_ahead ? ' <span class="git-sync-meta">(' + data.commits_ahead + " ahead)</span>" : ""),
+      "</div>"
+    ];
+    if (data.last_sync && data.last_sync.at) {
+      lines.push(
+        '<div><span class="git-workspace-label">Last sync</span>',
+        '<span>' + escapeHtml(data.last_sync.at + " → " + (data.last_sync.to_commit || "").slice(0, 7)) + "</span></div>"
+      );
+    }
+    if (data.last_build_commit && data.last_build_commit.commit) {
+      lines.push(
+        '<div><span class="git-workspace-label">Last build</span>',
+        '<span>' + escapeHtml(data.last_build_commit.commit) + "</span></div>"
+      );
+    }
+    if (remote.fetched_at) {
+      lines.push(
+        '<div><span class="git-workspace-label">Last fetch</span>',
+        '<span>' + escapeHtml(remote.fetched_at) + "</span></div>"
+      );
+    }
+    lines.push("</div>");
+    return lines.join("");
+  }
+
+  function buildSummaryFromWorkspace(data) {
+    var ws = data.build_workspace || {};
+    var remote = data.remote || {};
+    var status = data.sync_status || "unknown";
+    var parts = ["Will build: " + (ws.branch || "?") + " @ " + (ws.commit || "unknown")];
+    parts.push(syncStatusLabel(status));
+    if (status !== "in_sync" && remote.commit) {
+      parts.push("remote @ " + remote.commit);
+    }
+    return parts.join(" · ");
+  }
+
+  function loadWorkspaceStatus(panel) {
     var projectId = panel.getAttribute("data-project-id");
-    var statusUrl = panel.getAttribute("data-git-status-url");
-    if (!statusUrl) return;
-    fetch(apiUrl(statusUrl), fetchOpts())
+    var workspaceUrl = panel.getAttribute("data-git-workspace-url");
+    if (!workspaceUrl) return;
+    var url = apiUrl(workspaceUrl) + (workspaceUrl.indexOf("?") >= 0 ? "&" : "?") + workspaceQuery(panel);
+    fetch(url, fetchOpts())
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (data.error) {
           setStatus(panel, data.error, true);
+          setWorkspaceDetail(panel, "<p>" + escapeHtml(data.error) + "</p>", true);
           return;
         }
         panel.dataset.statusLoaded = "1";
-        var branch = data.branch || "unknown";
-        var commit = data.commit || "unknown";
-        var parts = [branch + " @ " + commit];
-        if (data.dirty_count > 0) {
-          parts.push(data.dirty_count + " uncommitted change(s)");
+        panel.dataset.syncStatus = data.sync_status || "unknown";
+        var isWarn = data.sync_status === "behind" || data.sync_status === "diverged"
+          || (data.build_workspace && data.build_workspace.dirty_count > 0)
+          || data.base_repo && data.base_repo.has_conflicts;
+        if (panel.classList.contains("build-panel")) {
+          setStatus(panel, buildSummaryFromWorkspace(data), isWarn);
         }
-        if (data.has_conflicts) {
-          parts.push("merge conflicts");
+        if (panel.classList.contains("git-workspace-panel")) {
+          setWorkspaceDetail(panel, renderWorkspaceDetail(data), isWarn);
         }
-        if (data.build_locked) {
-          parts.push("build lock active");
+        var panels = findProjectPanels(projectId);
+        if (panels.build && panels.build !== panel) {
+          setStatus(panels.build, buildSummaryFromWorkspace(data), isWarn);
         }
-        setStatus(panel, parts.join(" · "), data.dirty_count > 0 || data.has_conflicts);
-        var select = panel.querySelector(".build-branch-select");
+        if (panels.workspace && panels.workspace !== panel) {
+          setWorkspaceDetail(panels.workspace, renderWorkspaceDetail(data), isWarn);
+        }
+
+        var select = panel.querySelector(".git-branch-select");
         if (select && !select.dataset.loaded) {
           select.dataset.loaded = "1";
           var branchesUrl = panel.getAttribute("data-git-branches-url");
           if (branchesUrl) {
             fetch(apiUrl(branchesUrl), fetchOpts())
               .then(function (r) { return r.json(); })
-              .then(function (br) { fillBranchSelect(select, br, branch); })
+              .then(function (br) {
+                fillBranchSelect(select, br, data.branch || br.current);
+              })
               .catch(function () {});
           }
         }
+
+        var stratSel = panel.querySelector(".git-sync-strategy");
+        if (stratSel && data.sync_strategy && !stratSel.dataset.userSet) {
+          stratSel.value = data.sync_strategy;
+        }
+
         var startBtn = panel.querySelector(".btn-build-start");
         if (startBtn) {
-          startBtn.disabled = !!(data.has_conflicts || data.active_job);
+          startBtn.disabled = !!(data.base_repo && data.base_repo.has_conflicts) || !!data.active_job;
         }
-        if (data.active_job && data.active_job.id) {
-          insertBuildRow(panel, data.active_job);
-          pollJob(panel, data.active_job.id);
+        if (data.active_job && data.active_job.id && panels.build) {
+          insertBuildRow(panels.build, data.active_job);
+          pollJob(panels.build, data.active_job.id);
         }
       })
       .catch(function () {
-        setStatus(panel, "Could not load git status", true);
+        setStatus(panel, "Could not load git workspace status", true);
       });
+  }
+
+  function loadGitStatus(panel) {
+    loadWorkspaceStatus(panel);
   }
 
   function pollJob(panel, jobId) {
@@ -558,37 +699,54 @@ _BUILD_SCRIPT_BODY = """
     check();
   }
 
-  document.querySelectorAll(".build-panel").forEach(function (panel) {
-    var statusUrl = panel.getAttribute("data-git-status-url");
-    if (!statusUrl) return;
-    fetch(apiUrl(statusUrl), fetchOpts())
+  document.querySelectorAll(".build-panel, .git-workspace-panel").forEach(function (panel) {
+    var workspaceUrl = panel.getAttribute("data-git-workspace-url");
+    if (!workspaceUrl) return;
+    fetch(apiUrl(workspaceUrl), fetchOpts())
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (data.active_job && data.active_job.id) {
-          openBuildPanel(panel);
+          var buildPanel = findProjectPanels(panel.getAttribute("data-project-id")).build;
+          if (buildPanel) openBuildPanel(buildPanel);
         }
       })
       .catch(function () {});
   });
 
+  document.addEventListener("change", function (e) {
+    var field = e.target.closest(".git-branch-select, .git-mode-select, .git-sync-strategy");
+    if (!field) return;
+    var panel = field.closest(".build-panel, .git-workspace-panel");
+    if (!panel) return;
+    if (field.classList.contains("git-sync-strategy")) {
+      field.dataset.userSet = "1";
+    }
+    syncGitFields(panel);
+    panel.dataset.statusLoaded = "";
+    var panels = findProjectPanels(panel.getAttribute("data-project-id"));
+    if (panels.build) panels.build.dataset.statusLoaded = "";
+    if (panels.workspace) panels.workspace.dataset.statusLoaded = "";
+    loadWorkspaceStatus(panel);
+  });
+
   document.addEventListener("click", function (e) {
-    var toggleBtn = e.target.closest(".btn-new-build-toggle");
+    var toggleBtn = e.target.closest(".btn-new-build-toggle, .btn-git-workspace-toggle");
     if (toggleBtn) {
-      var togglePanel = findPanelForToggle(toggleBtn);
-      if (togglePanel) toggleBuildPanel(togglePanel);
+      var panelToToggle = findPanelForToggle(toggleBtn);
+      if (panelToToggle) togglePanel(panelToToggle);
       return;
     }
 
-    var cancelBtn = e.target.closest(".btn-build-cancel");
+    var cancelBtn = e.target.closest(".btn-build-cancel, .btn-git-workspace-cancel");
     if (cancelBtn) {
-      var cancelPanel = cancelBtn.closest(".build-panel");
-      if (cancelPanel) closeBuildPanel(cancelPanel);
+      var cancelPanel = cancelBtn.closest(".build-panel, .git-workspace-panel");
+      if (cancelPanel) closePanel(cancelPanel);
       return;
     }
 
-    var fetchBtn = e.target.closest(".btn-build-fetch");
+    var fetchBtn = e.target.closest(".btn-build-fetch, .btn-git-fetch");
     if (fetchBtn) {
-      var panel = fetchBtn.closest(".build-panel");
+      var panel = fetchBtn.closest(".build-panel, .git-workspace-panel");
       var url = panel.getAttribute("data-git-fetch-url");
       fetchBtn.disabled = true;
       fetch(apiUrl(url), postFetchOptions(
@@ -596,11 +754,42 @@ _BUILD_SCRIPT_BODY = """
       ))
         .then(function (r) { return r.json(); })
         .then(function () {
-          var select = panel.querySelector(".build-branch-select");
-          if (select) select.dataset.loaded = "";
-          loadGitStatus(panel);
+          panel.querySelectorAll(".git-branch-select").forEach(function (select) {
+            select.dataset.loaded = "";
+          });
+          panel.dataset.statusLoaded = "";
+          loadWorkspaceStatus(panel);
         })
         .finally(function () { fetchBtn.disabled = false; });
+      return;
+    }
+
+    var syncBtn = e.target.closest(".btn-git-sync");
+    if (syncBtn) {
+      var syncPanel = syncBtn.closest(".git-workspace-panel, .build-panel");
+      if (!syncPanel) return;
+      var syncUrl = syncPanel.getAttribute("data-git-sync-url");
+      if (!syncUrl) return;
+      var params = getGitParamsFromPanel(syncPanel);
+      syncBtn.disabled = true;
+      var body = "project_id=" + encodeURIComponent(syncPanel.getAttribute("data-project-id"))
+        + "&branch=" + encodeURIComponent(params.branch)
+        + "&git_mode=" + encodeURIComponent(params.gitMode)
+        + "&strategy=" + encodeURIComponent(params.syncStrategy);
+      fetch(apiUrl(syncUrl), postFetchOptions(body))
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          if (!res.ok || !res.j.ok) {
+            throw new Error((res.j && res.j.error) || "sync failed");
+          }
+          syncPanel.dataset.statusLoaded = "";
+          loadWorkspaceStatus(syncPanel);
+          setProgress(syncPanel, "Workspace synced to " + ((res.j.after && res.j.after.commit) || "latest"), false);
+        })
+        .catch(function (err) {
+          setProgress(syncPanel, err.message || "Git sync failed", true);
+        })
+        .finally(function () { syncBtn.disabled = false; });
       return;
     }
 
@@ -643,26 +832,41 @@ _BUILD_SCRIPT_BODY = """
     if (!startBtn || startBtn.disabled) return;
     var panel = startBtn.closest(".build-panel");
     var triggerUrl = panel.getAttribute("data-trigger-url");
-    var branch = (panel.querySelector(".build-branch-select") || {}).value || "";
-    var gitMode = (panel.querySelector(".build-git-mode") || {}).value || "auto";
+    var params = getGitParamsFromPanel(panel);
     var config = (panel.querySelector(".build-configuration") || {}).value || "";
-    var body = "project_id=" + encodeURIComponent(panel.getAttribute("data-project-id"))
-      + "&branch=" + encodeURIComponent(branch)
-      + "&git_mode=" + encodeURIComponent(gitMode)
-      + "&configuration=" + encodeURIComponent(config);
-    startBtn.disabled = true;
-    fetch(apiUrl(triggerUrl), postFetchOptions(body))
-      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
-      .then(function (res) {
-        if (!res.ok || !res.j.id) {
-          throw new Error((res.j && res.j.error) || "trigger failed");
-        }
-        pollJob(panel, res.j.id);
-      })
-      .catch(function (err) {
-        setProgress(panel, err.message || "Could not start build", true);
-        startBtn.disabled = false;
-      });
+    var syncStatus = panel.dataset.syncStatus || "unknown";
+
+    function triggerBuild(allowStale) {
+      var body = "project_id=" + encodeURIComponent(panel.getAttribute("data-project-id"))
+        + "&branch=" + encodeURIComponent(params.branch)
+        + "&git_mode=" + encodeURIComponent(params.gitMode)
+        + "&sync_strategy=" + encodeURIComponent(params.syncStrategy)
+        + "&configuration=" + encodeURIComponent(config)
+        + "&sync_before_build=true"
+        + "&allow_stale_build=" + (allowStale ? "true" : "false");
+      startBtn.disabled = true;
+      fetch(apiUrl(triggerUrl), postFetchOptions(body))
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          if (!res.ok || !res.j.id) {
+            throw new Error((res.j && res.j.error) || "trigger failed");
+          }
+          pollJob(panel, res.j.id);
+        })
+        .catch(function (err) {
+          setProgress(panel, err.message || "Could not start build", true);
+          startBtn.disabled = false;
+        });
+    }
+
+    if (syncStatus === "behind" || syncStatus === "diverged") {
+      var msg = "Workspace is " + syncStatus + " relative to remote. Sync & build is recommended.";
+      if (window.confirm(msg + "\\n\\nOK = Sync happens automatically during build.\\nCancel = abort.")) {
+        triggerBuild(false);
+      }
+      return;
+    }
+    triggerBuild(false);
   });
 })();
 """
@@ -1424,6 +1628,57 @@ def render_build_toggle_button(project_id: str) -> str:
     )
 
 
+def render_git_workspace_toggle_button(project_id: str) -> str:
+    pid = html.escape(project_id)
+    panel_id = f"git-workspace-panel-{pid}"
+    return (
+        f'<button type="button" class="btn-git-workspace-toggle" '
+        f'aria-expanded="false" aria-controls="{panel_id}">Git workspace</button>'
+    )
+
+
+def _git_sync_strategy_options(selected: str = "match_remote") -> str:
+    options = [
+        ("match_remote", "Match remote exactly"),
+        ("fast_forward", "Fast-forward only"),
+        ("recreate_worktree", "Recreate worktree"),
+    ]
+    parts: list[str] = []
+    for value, label in options:
+        sel = " selected" if value == selected else ""
+        parts.append(f'<option value="{value}"{sel}>{html.escape(label)}</option>')
+    return "".join(parts)
+
+
+def _git_panel_fields(project_id: str, *, id_prefix: str) -> str:
+    pid = html.escape(project_id)
+    return (
+        '<div class="build-panel-grid">'
+        '<div class="build-panel-field">'
+        f'<label for="{id_prefix}-branch-{pid}">Branch</label>'
+        f'<select class="git-branch-select" id="{id_prefix}-branch-{pid}">'
+        '<option value="">(current branch)</option>'
+        "</select>"
+        "</div>"
+        '<div class="build-panel-field">'
+        f'<label for="{id_prefix}-mode-{pid}">Git mode</label>'
+        f'<select class="git-mode-select" id="{id_prefix}-mode-{pid}">'
+        '<option value="auto" selected>Auto</option>'
+        '<option value="checkout">Checkout</option>'
+        '<option value="stash_checkout">Stash + checkout</option>'
+        '<option value="worktree">Worktree</option>'
+        "</select>"
+        "</div>"
+        '<div class="build-panel-field">'
+        f'<label for="{id_prefix}-strategy-{pid}">Sync strategy</label>'
+        f'<select class="git-sync-strategy" id="{id_prefix}-strategy-{pid}">'
+        f"{_git_sync_strategy_options()}"
+        "</select>"
+        "</div>"
+        "</div>"
+    )
+
+
 def _wrap_header_actions(*actions: str) -> str:
     parts = [action for action in actions if action]
     if not parts:
@@ -1438,9 +1693,10 @@ def render_build_panel(
     *,
     trigger_url: str,
     preflight_url: str,
-    git_status_url: str,
+    git_workspace_url: str,
     git_branches_url: str,
     git_fetch_url: str,
+    git_sync_url: str,
     jobs_url: str,
 ) -> str:
     pid = html.escape(project_id)
@@ -1449,43 +1705,64 @@ def render_build_panel(
         f'<div class="build-panel" id="{panel_id}" hidden data-project-id="{pid}" '
         f'data-trigger-url="{html.escape(trigger_url)}" '
         f'data-preflight-url="{html.escape(preflight_url)}" '
-        f'data-git-status-url="{html.escape(git_status_url)}" '
+        f'data-git-workspace-url="{html.escape(git_workspace_url)}" '
         f'data-git-branches-url="{html.escape(git_branches_url)}" '
         f'data-git-fetch-url="{html.escape(git_fetch_url)}" '
+        f'data-git-sync-url="{html.escape(git_sync_url)}" '
         f'data-jobs-url="{html.escape(jobs_url)}">'
-        '<p class="build-git-status build-panel-status muted">Loading git status…</p>'
-        '<div class="build-panel-grid">'
+        '<p class="build-panel-title">New build</p>'
+        '<p class="build-git-status build-panel-status muted">Loading workspace status…</p>'
+        f"{_git_panel_fields(project_id, id_prefix='build')}"
         '<div class="build-panel-field">'
-        '<label for="branch-' + pid + '">Branch</label>'
-        f'<select class="build-branch-select" id="branch-{pid}">'
-        '<option value="">(current branch)</option>'
-        "</select>"
-        "</div>"
-        '<div class="build-panel-field">'
-        '<label for="mode-' + pid + '">Git mode</label>'
-        f'<select class="build-git-mode" id="mode-{pid}">'
-        '<option value="auto" selected>Auto</option>'
-        '<option value="checkout">Checkout</option>'
-        '<option value="stash_checkout">Stash + checkout</option>'
-        '<option value="worktree">Worktree</option>'
-        "</select>"
-        "</div>"
-        '<div class="build-panel-field">'
-        '<label for="config-' + pid + '">Configuration</label>'
+        f'<label for="config-{pid}">Configuration</label>'
         f'<select class="build-configuration" id="config-{pid}">'
         '<option value="">Default (projects.json)</option>'
         '<option value="Release">Release</option>'
         '<option value="Debug">Debug</option>'
         "</select>"
         "</div>"
-        "</div>"
         '<div class="build-panel-actions">'
         '<button type="button" class="btn-build-secondary btn-build-preflight">Check environment</button>'
         '<button type="button" class="btn-build-start">Start build</button>'
-        '<button type="button" class="btn-build-secondary btn-build-fetch">Fetch remotes</button>'
+        '<button type="button" class="btn-build-secondary btn-build-fetch" '
+        'title="Refresh remote branch list (does not update build workspace)">Fetch remotes</button>'
+        '<button type="button" class="btn-build-secondary btn-git-sync">Sync workspace</button>'
         '<button type="button" class="btn-build-secondary btn-build-cancel">Cancel</button>'
         "</div>"
         '<div class="build-preflight-results" hidden aria-live="polite"></div>'
+        '<p class="build-panel-progress" aria-live="polite"></p>'
+        "</div>"
+    )
+
+
+def render_git_workspace_panel(
+    project_id: str,
+    *,
+    git_workspace_url: str,
+    git_branches_url: str,
+    git_fetch_url: str,
+    git_sync_url: str,
+) -> str:
+    pid = html.escape(project_id)
+    panel_id = f"git-workspace-panel-{pid}"
+    return (
+        f'<div class="git-workspace-panel build-panel" id="{panel_id}" hidden data-project-id="{pid}" '
+        f'data-git-workspace-url="{html.escape(git_workspace_url)}" '
+        f'data-git-branches-url="{html.escape(git_branches_url)}" '
+        f'data-git-fetch-url="{html.escape(git_fetch_url)}" '
+        f'data-git-sync-url="{html.escape(git_sync_url)}">'
+        '<p class="build-panel-title">Git workspace</p>'
+        '<p class="build-git-status build-panel-status muted">Loading workspace status…</p>'
+        f"{_git_panel_fields(project_id, id_prefix='ws')}"
+        '<div class="git-workspace-detail build-panel-status muted">'
+        "Loading workspace details…"
+        "</div>"
+        '<div class="build-panel-actions">'
+        '<button type="button" class="btn-build-secondary btn-git-fetch" '
+        'title="Refresh remote branch list (does not update build workspace)">Fetch remotes</button>'
+        '<button type="button" class="btn-build-secondary btn-git-sync">Sync workspace</button>'
+        '<button type="button" class="btn-build-secondary btn-git-workspace-cancel">Close</button>'
+        "</div>"
         '<p class="build-panel-progress" aria-live="polite"></p>'
         "</div>"
     )
@@ -1563,7 +1840,9 @@ def render_index(
     preflight_url = u("/api/builds/preflight") if build_enabled else ""
     git_status_base = u("/api/git/status") if build_enabled else ""
     git_branches_base = u("/api/git/branches") if build_enabled else ""
+    git_workspace_base = u("/api/git/workspace") if build_enabled else ""
     git_fetch_url = u("/api/git/fetch") if build_enabled else ""
+    git_sync_url = u("/api/git/sync") if build_enabled else ""
     jobs_url = u("/api/builds/jobs") if build_enabled else ""
 
     def project_api_url(base: str, pid: str) -> str:
@@ -1587,25 +1866,36 @@ def render_index(
         builds = project.get("builds", [])
 
         build_panel_html = ""
+        git_workspace_panel_html = ""
         build_toggle_html = ""
+        git_workspace_toggle_html = ""
         if build_enabled:
             build_toggle_html = render_build_toggle_button(project_id)
+            git_workspace_toggle_html = render_git_workspace_toggle_button(project_id)
             build_panel_html = render_build_panel(
                 project_id,
                 trigger_url=trigger_url,
                 preflight_url=preflight_url,
-                git_status_url=project_api_url(git_status_base, project_id),
+                git_workspace_url=project_api_url(git_workspace_base, project_id),
                 git_branches_url=project_api_url(git_branches_base, project_id),
                 git_fetch_url=git_fetch_url,
+                git_sync_url=git_sync_url,
                 jobs_url=jobs_url,
+            )
+            git_workspace_panel_html = render_git_workspace_panel(
+                project_id,
+                git_workspace_url=project_api_url(git_workspace_base, project_id),
+                git_branches_url=project_api_url(git_branches_base, project_id),
+                git_fetch_url=git_fetch_url,
+                git_sync_url=git_sync_url,
             )
 
         if not builds:
-            header_actions = _wrap_header_actions(build_toggle_html)
+            header_actions = _wrap_header_actions(build_toggle_html, git_workspace_toggle_html)
             sections.append(
                 f'<section class="project-card">'
                 f'<div class="project-card-header"><h2>{display}</h2>{header_actions}</div>'
-                f"{build_panel_html}"
+                f"{build_panel_html}{git_workspace_panel_html}"
                 '<p class="empty-state">No builds yet.</p></section>'
             )
             continue
@@ -1614,6 +1904,8 @@ def render_index(
         header_action_parts: list[str] = []
         if build_toggle_html:
             header_action_parts.append(build_toggle_html)
+        if git_workspace_toggle_html:
+            header_action_parts.append(git_workspace_toggle_html)
         if has_successful:
             latest_install_url = u(f"{base}/latest/{project_id}")
             header_action_parts.append(
@@ -1638,7 +1930,7 @@ def render_index(
         sections.append(
             f'<section class="project-card">'
             f'<div class="project-card-header">{title_row}{header_actions}</div>'
-            f"{build_panel_html}"
+            f"{build_panel_html}{git_workspace_panel_html}"
         )
 
         sections.append(

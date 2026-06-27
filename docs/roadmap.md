@@ -89,6 +89,7 @@ flowchart LR
 | F28 | macOS menu bar widget | 5 | P3 | L | Planned | [F28](roadmap-features.md#f28) |
 | F29 | Dashboard build trigger | 5 | P1 | L | Done | [F29](roadmap-features.md#f29) |
 | F30 | Dashboard preflight (Check environment) | 5 | P2 | S | Done | [F30](roadmap-features.md#f30) |
+| F31 | Git workspace sync | 5 | P1 | M | Done | [F31](roadmap-features.md#f31) |
 
 **Priority:** P0 = do first · P1 = high value · P2 = nice to have · P3 = future  
 **Effort:** S = small (hours) · M = medium (1–2 days) · L = large (multi-day)

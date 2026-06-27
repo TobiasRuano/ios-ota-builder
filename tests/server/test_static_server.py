@@ -277,6 +277,26 @@ def test_handle_build_trigger_schedules_job(
     monkeypatch.setattr("static_server.get_project_repo_path", lambda *a, **k: tmp_path)
     monkeypatch.setattr("static_server.active_job_for_project", lambda *a, **k: None)
     monkeypatch.setattr("static_server.schedule_job", fake_schedule_job)
+    monkeypatch.setattr(
+        "static_server.get_git_config",
+        lambda *a, **k: {
+            "remote": "origin",
+            "worktree_base": "",
+            "default_mode": "auto",
+            "default_sync_strategy": "match_remote",
+            "require_sync_before_build": True,
+            "allow_stale_build": False,
+            "secrets_sync": [],
+        },
+    )
+    monkeypatch.setattr(
+        "static_server.workspace_status",
+        lambda *a, **k: {"sync_status": "in_sync"},
+    )
+    monkeypatch.setattr(
+        "static_server.sync_preview",
+        lambda *a, **k: {"ok": True},
+    )
 
     harness = HandlerHarness(
         "/api/builds/trigger?token=secret",

@@ -55,6 +55,12 @@ PROJECT_ID="$(jq -r '.project_id' "$JOB_FILE")"
 BRANCH="$(jq -r '.branch // ""' "$JOB_FILE")"
 GIT_MODE="$(jq -r '.git_mode // "auto"' "$JOB_FILE")"
 CONFIGURATION="$(jq -r '.configuration // ""' "$JOB_FILE")"
+SYNC_STRATEGY="$(jq -r '.sync_strategy // ""' "$JOB_FILE")"
+SYNC_BEFORE_BUILD="$(jq -r '.sync_before_build // true' "$JOB_FILE")"
+ALLOW_STALE_BUILD="$(jq -r '.allow_stale_build // false' "$JOB_FILE")"
+if [[ -z "$SYNC_STRATEGY" || "$SYNC_STRATEGY" == "null" ]]; then
+  SYNC_STRATEGY="match_remote"
+fi
 
 log "=== Build job $JOB_ID for $PROJECT_ID ==="
 
@@ -62,14 +68,53 @@ load_config
 
 update_job "preparing"
 
+echo "[stage] git_sync"
+
+PREPARE_ARGS=(
+  "$OTA_BUILDER_ROOT/scripts/prepare_git_workspace.sh"
+  "--strategy" "${SYNC_STRATEGY:-match_remote}"
+)
+if [[ "$SYNC_BEFORE_BUILD" == "true" ]]; then
+  PREPARE_ARGS+=("--verify-in-sync")
+elif [[ "$ALLOW_STALE_BUILD" != "true" ]]; then
+  PREPARE_ARGS+=("--verify-in-sync")
+fi
+PREPARE_ARGS+=("$PROJECT_ID" "$BRANCH" "$GIT_MODE")
+
 WORKSPACE_PATH=""
-if ! WORKSPACE_PATH="$("$OTA_BUILDER_ROOT/scripts/prepare_git_workspace.sh" \
-  "$PROJECT_ID" "$BRANCH" "$GIT_MODE")"; then
-  update_job "failed" '{"error":"git workspace preparation failed"}'
+if ! WORKSPACE_PATH="$("${PREPARE_ARGS[@]}")"; then
+  update_job "failed" '{"error":"git workspace sync failed — see job log for details","stage":"git_sync"}'
   exit 1
 fi
 
-update_job "building" "$(WORKSPACE_PATH="$WORKSPACE_PATH" python3 -c 'import json,os; print(json.dumps({"workspace_path": os.environ["WORKSPACE_PATH"]}))')"
+WORKSPACE_COMMIT="$(git -C "$WORKSPACE_PATH" rev-parse HEAD 2>/dev/null || echo "")"
+WORKSPACE_COMMIT_SHORT="$(git -C "$WORKSPACE_PATH" rev-parse --short HEAD 2>/dev/null || echo "")"
+REMOTE_NAME="$(jq -r --arg id "$PROJECT_ID" '.projects[$id].git.remote // "origin"' "$OTA_BUILDER_ROOT/config/projects.json")"
+EFFECTIVE_BRANCH="$BRANCH"
+if [[ -z "$EFFECTIVE_BRANCH" ]]; then
+  EFFECTIVE_BRANCH="$(git -C "$WORKSPACE_PATH" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
+fi
+REMOTE_COMMIT=""
+if [[ -n "$EFFECTIVE_BRANCH" ]] && git -C "$WORKSPACE_PATH" show-ref --verify --quiet "refs/remotes/${REMOTE_NAME}/${EFFECTIVE_BRANCH}"; then
+  REMOTE_COMMIT="$(git -C "$WORKSPACE_PATH" rev-parse "${REMOTE_NAME}/${EFFECTIVE_BRANCH}")"
+fi
+
+update_job "building" "$(python3 -c 'import json,os; print(json.dumps({
+  "workspace_path": os.environ["WORKSPACE_PATH"],
+  "workspace_commit": os.environ.get("WORKSPACE_COMMIT", ""),
+  "workspace_commit_short": os.environ.get("WORKSPACE_COMMIT_SHORT", ""),
+  "remote_commit": os.environ.get("REMOTE_COMMIT", ""),
+  "sync_strategy": os.environ.get("SYNC_STRATEGY", ""),
+  "sync_before_build": os.environ.get("SYNC_BEFORE_BUILD", "") == "true",
+  "allow_stale_build": os.environ.get("ALLOW_STALE_BUILD", "") == "true",
+}))' \
+  WORKSPACE_PATH="$WORKSPACE_PATH" \
+  WORKSPACE_COMMIT="$WORKSPACE_COMMIT" \
+  WORKSPACE_COMMIT_SHORT="$WORKSPACE_COMMIT_SHORT" \
+  REMOTE_COMMIT="$REMOTE_COMMIT" \
+  SYNC_STRATEGY="$SYNC_STRATEGY" \
+  SYNC_BEFORE_BUILD="$SYNC_BEFORE_BUILD" \
+  ALLOW_STALE_BUILD="$ALLOW_STALE_BUILD")"
 
 BUILD_ARGS=("$OTA_BUILDER_ROOT/agent_build_ota.sh" "--workspace-path" "$WORKSPACE_PATH")
 if [[ -n "$CONFIGURATION" ]]; then
@@ -104,6 +149,6 @@ FAIL_ERROR="build exited with code $EC"
 if [[ -n "$FAIL_STAGE" ]]; then
   FAIL_ERROR="build failed at ${FAIL_STAGE} (exit $EC)"
 fi
-update_job "failed" "$(FAIL_ERROR="$FAIL_ERROR" python3 -c 'import json,os; print(json.dumps({"error": os.environ["FAIL_ERROR"]}))')"
+update_job "failed" "$(FAIL_ERROR="$FAIL_ERROR" FAIL_STAGE="$FAIL_STAGE" python3 -c 'import json,os; print(json.dumps({"error": os.environ["FAIL_ERROR"], "stage": os.environ.get("FAIL_STAGE","")}))')"
 log "=== Build job $JOB_ID failed (exit $EC) ==="
 exit "$EC"

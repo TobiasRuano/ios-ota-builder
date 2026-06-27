@@ -309,9 +309,10 @@ def test_render_build_panel_includes_controls() -> None:
         "my-app",
         trigger_url="/api/builds/trigger?token=secret",
         preflight_url="/api/builds/preflight?token=secret",
-        git_status_url="/api/git/status?token=secret&project=my-app",
+        git_workspace_url="/api/git/workspace?token=secret&project=my-app",
         git_branches_url="/api/git/branches?token=secret&project=my-app",
         git_fetch_url="/api/git/fetch?token=secret",
+        git_sync_url="/api/git/sync?token=secret",
         jobs_url="/api/builds/jobs?token=secret",
     )
     assert "build-panel" in html
@@ -323,8 +324,39 @@ def test_render_build_panel_includes_controls() -> None:
     assert 'data-preflight-url="/api/builds/preflight?token=secret"' in html
     assert "Start build" in html
     assert "btn-build-cancel" in html
+    assert "btn-git-sync" in html
+    assert "git-sync-strategy" in html
     assert 'data-project-id="my-app"' in html
-    assert "build-panel-title" not in html
+    assert 'data-git-workspace-url="' in html
+    assert "/api/git/workspace" in html
+    assert "project=my-app" in html
+    assert "build-panel-title" in html
+
+
+def test_render_git_workspace_panel_includes_controls() -> None:
+    from ota_index import render_git_workspace_panel
+
+    html = render_git_workspace_panel(
+        "my-app",
+        git_workspace_url="/api/git/workspace?token=secret&project=my-app",
+        git_branches_url="/api/git/branches?token=secret&project=my-app",
+        git_fetch_url="/api/git/fetch?token=secret",
+        git_sync_url="/api/git/sync?token=secret",
+    )
+    assert 'id="git-workspace-panel-my-app"' in html
+    assert "Git workspace" in html
+    assert "git-workspace-detail" in html
+    assert "btn-git-sync" in html
+    assert "btn-git-fetch" in html
+
+
+def test_render_git_workspace_toggle_button() -> None:
+    from ota_index import render_git_workspace_toggle_button
+
+    html = render_git_workspace_toggle_button("my-app")
+    assert 'class="btn-git-workspace-toggle"' in html
+    assert 'aria-controls="git-workspace-panel-my-app"' in html
+    assert "Git workspace" in html
 
 
 def test_render_build_toggle_button() -> None:
@@ -346,6 +378,10 @@ def test_render_index_includes_build_panel_when_token_present() -> None:
     assert "build-panel" in html
     assert 'class="build-panel" id="build-panel-my-app" hidden' in html
     assert "btn-new-build-toggle" in html
+    assert "btn-git-workspace-toggle" in html
+    assert "git-workspace-panel" in html
+    assert "/api/git/workspace" in html
+    assert "/api/git/sync" in html
     assert "btn-build-start" in html
     assert "/api/builds/trigger?token=secret" in html
     assert "/api/builds/preflight?token=secret" in html

@@ -198,13 +198,22 @@ During a build, the pipeline emits `[stage] <name>` lines to stderr (also captur
 
 ### Dashboard builds (F29)
 
-Each project card on the dashboard includes a **New build** button in the header when accessed with a valid token. Click it to open the build form. You can:
+Each project card on the dashboard includes **New build** and **Git workspace** buttons in the header when accessed with a valid token.
 
-- View current git branch, commit, and dirty-file count (same rules as F13)
-- **Fetch remotes** to refresh the branch list
-- Choose **branch**, **git mode**, and **configuration**
-- **Check environment** — runs F16 preflight (`signing`, disk, server) via `POST /api/builds/preflight` without compiling; results appear inline in the panel
-- **Start build** — runs in the background on the Mac; the page polls job status and refreshes when done
+**New build panel:**
+
+- Summary line shows the commit that will be built (build workspace, not just the base repo)
+- Choose **branch**, **git mode**, **sync strategy**, and **configuration**
+- **Fetch remotes** — refreshes remote-tracking refs and the branch list (does **not** update the build workspace)
+- **Sync workspace** — explicitly syncs the build workspace to the remote branch tip
+- **Check environment** — runs F16 preflight without compiling
+- **Start build** — syncs (by default), then compiles; fails loudly if sync cannot match remote
+
+**Git workspace panel (F31):**
+
+- Detailed view: base repo vs build workspace path, workspace HEAD vs remote, ahead/behind/diverged status
+- Last sync, last fetch, and last successful build commit
+- Same branch/mode/strategy controls plus **Fetch remotes** and **Sync workspace**
 
 **Git modes** (per project, default `auto` in `projects.json`):
 
@@ -215,6 +224,16 @@ Each project card on the dashboard includes a **New build** button in the header
 | `stash_checkout` | `git stash -u` then checkout (stash is not auto-restored) |
 | `worktree` | Build in a separate worktree under `git.worktree_base` |
 
+**Sync strategies** (default `match_remote`):
+
+| Strategy | Behavior |
+|----------|----------|
+| `match_remote` | `git reset --hard origin/<branch>` — deterministic; always matches remote |
+| `fast_forward` | `git merge --ff-only origin/<branch>` — fails if diverged |
+| `recreate_worktree` | Removes and recreates the worktree from remote (worktree mode only) |
+
+If sync fails, the build job stops at stage `git_sync` with an error in the job log — it does not compile stale code silently.
+
 **Secrets in worktrees:** uncommitted files (e.g. RevenueCat keys, `Secrets.xcconfig`) are not copied by git. List them under `git.secrets_sync` in `config/projects.json` — they are symlinked from the base checkout into the worktree before build.
 
 Example `projects.json` extension:
@@ -224,13 +243,23 @@ Example `projects.json` extension:
   "default_mode": "auto",
   "remote": "origin",
   "worktree_base": "/Users/YOU/.ota-worktrees/my-app",
+  "default_sync_strategy": "match_remote",
+  "require_sync_before_build": true,
+  "allow_stale_build": false,
   "secrets_sync": ["Config/Secrets.xcconfig"]
 }
 ```
 
 Job logs: `.server/build-jobs/<job-id>.log` (gitignored). F14 build lock still applies — a second build for the same project-id fails or waits per `OTA_BUILD_LOCK`.
 
-API (token required): `POST /api/builds/trigger`, `GET /api/builds/jobs/<id>`, `GET /api/git/status?project=<id>`.
+API (token required):
+
+- `GET /api/git/workspace?project=<id>&branch=&git_mode=&strategy=`
+- `GET /api/git/sync/preview?project=<id>&branch=&git_mode=&strategy=`
+- `POST /api/git/sync` — explicit workspace sync
+- `POST /api/git/fetch` — fetch remotes only
+- `POST /api/builds/trigger` — accepts `sync_strategy`, `sync_before_build`, `allow_stale_build`
+- `GET /api/builds/jobs/<id>`, `GET /api/git/status?project=<id>`
 
 ---
 
