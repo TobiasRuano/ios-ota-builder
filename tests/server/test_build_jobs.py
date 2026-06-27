@@ -27,6 +27,14 @@ def test_validate_trigger_request_accepts_defaults() -> None:
     fields = validate_trigger_request(project_id="my-app")
     assert fields["git_mode"] == "auto"
     assert fields["branch"] == ""
+    assert fields["sync_strategy"] == "match_remote"
+    assert fields["sync_before_build"] is True
+    assert fields["allow_stale_build"] is False
+
+
+def test_validate_trigger_request_rejects_bad_sync_strategy() -> None:
+    with pytest.raises(BuildJobError, match="invalid sync_strategy"):
+        validate_trigger_request(project_id="my-app", sync_strategy="invalid")
 
 
 def test_validate_trigger_request_rejects_bad_branch() -> None:

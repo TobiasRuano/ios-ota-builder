@@ -1204,6 +1204,59 @@ def css_build_panel() -> str:
   font-weight: 500;
 }
 
+.git-workspace-panel {
+  margin-top: .5rem;
+}
+
+.git-workspace-grid {
+  display: grid;
+  gap: .45rem;
+  margin: .75rem 0;
+  font-size: .84rem;
+}
+
+.git-workspace-label {
+  display: block;
+  font-size: .72rem;
+  font-weight: 500;
+  color: var(--muted);
+  margin-bottom: .1rem;
+}
+
+.git-workspace-path {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .78rem;
+  word-break: break-all;
+}
+
+.git-workspace-subject,
+.git-sync-meta {
+  color: var(--muted);
+}
+
+.git-sync-ok { color: var(--success, #1a7f37); font-weight: 500; }
+.git-sync-warn { color: var(--warning, #9a6700); font-weight: 500; }
+.git-sync-danger { color: var(--danger); font-weight: 500; }
+.git-sync-muted { color: var(--muted); }
+
+.btn-git-workspace-toggle {
+  display: inline-block;
+  padding: .35rem .75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+  font-size: .82rem;
+  cursor: pointer;
+}
+
+.btn-git-workspace-toggle[aria-expanded="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
 .build-preflight-results {
   margin: .75rem 0 0;
   padding: .65rem .75rem;

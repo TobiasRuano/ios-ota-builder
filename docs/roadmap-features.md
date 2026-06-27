@@ -1367,6 +1367,50 @@ F16, F29.
 
 ---
 
+<a id="f31"></a>
+### F31 — Git workspace sync (deterministic remote builds)
+
+| | |
+|---|---|
+| **Status** | Done |
+| **Priority** | P1 |
+| **Effort** | M |
+| **Phase** | 5 |
+
+**Problem**  
+F29 can build a remote branch once, but subsequent builds may reuse stale workspace code. `git pull --ff-only` ran silently (`|| true`), **Fetch remotes** only updated branch lists, and the dashboard showed base-repo status instead of the build workspace.
+
+**Proposed solution**  
+Explicit fetch / sync / build separation:
+
+- **Fetch remotes** — `git fetch --prune` (branch list + remote refs)
+- **Sync workspace** — deterministic strategies: `match_remote` (default), `fast_forward`, `recreate_worktree`
+- **Git workspace panel** — workspace path, HEAD vs remote, ahead/behind/diverged, last sync/fetch/build
+- Build jobs fail at stage `git_sync` when sync cannot match remote (no silent stale builds)
+- `GET /api/git/workspace`, `POST /api/git/sync`, `GET /api/git/sync/preview`
+
+**Files touched**
+
+- `scripts/prepare_git_workspace.sh`, `scripts/run_build_job.sh`
+- `server/git_api.py`, `server/build_jobs.py`, `server/static_server.py`
+- `tools/ota_index.py`, `tools/ui_theme.py`
+- `config/projects.json.example`, `docs/SETUP.md`
+- `tests/server/test_git_workspace.py`, `tests/scripts/test_prepare_git_workspace.py`
+
+**Dependencies**  
+F29 (Done).
+
+**Acceptance criteria**
+
+- [x] Dashboard shows Git workspace panel with explicit sync status
+- [x] Fetch and Sync are separate actions with clear labels
+- [x] Second build picks up new remote commits (`match_remote`)
+- [x] Sync failure fails job at `git_sync` (not silent)
+- [x] Job JSON records workspace/remote commits and sync strategy
+- [x] pytest coverage for sync API, script, and panel HTML
+
+---
+
 ## Shared implementation notes
 
 ### Cross-linking

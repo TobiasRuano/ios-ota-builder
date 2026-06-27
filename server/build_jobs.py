@@ -12,12 +12,14 @@ PROJECT_ID_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]*$")
 JOB_ID_RE = re.compile(r"^[a-zA-Z0-9._-]+$")
 BRANCH_RE = re.compile(r"^[a-zA-Z0-9/_.-]+$")
 GIT_MODES = frozenset({"auto", "checkout", "stash_checkout", "worktree"})
+SYNC_STRATEGIES = frozenset({"match_remote", "fast_forward", "recreate_worktree"})
 
 STAGE_MARKER_RE = re.compile(r"^\[stage\]\s+(\S+)", re.MULTILINE)
 
 STAGE_PROGRESS: dict[str, int] = {
     "queued": 5,
     "preparing": 10,
+    "git_sync": 12,
     "environment": 12,
     "resolving_spm": 28,
     "archiving": 50,
@@ -29,6 +31,7 @@ STAGE_PROGRESS: dict[str, int] = {
 STAGE_LABELS: dict[str, str] = {
     "queued": "Queued",
     "preparing": "Preparing",
+    "git_sync": "Syncing git workspace",
     "environment": "Environment checks",
     "resolving_spm": "Resolving dependencies",
     "archiving": "Archiving",
@@ -73,7 +76,10 @@ def validate_trigger_request(
     branch: str = "",
     git_mode: str = "auto",
     configuration: str = "",
-) -> dict[str, str]:
+    sync_strategy: str = "",
+    sync_before_build: bool = True,
+    allow_stale_build: bool = False,
+) -> dict[str, str | bool]:
     if not PROJECT_ID_RE.match(project_id):
         raise BuildJobError("invalid project_id")
     branch = branch.strip()
@@ -87,11 +93,17 @@ def validate_trigger_request(
     config = configuration.strip()
     if config and config not in {"Debug", "Release"}:
         raise BuildJobError("invalid configuration")
+    strategy = sync_strategy.strip() or "match_remote"
+    if strategy not in SYNC_STRATEGIES:
+        raise BuildJobError("invalid sync_strategy")
     return {
         "project_id": project_id,
         "branch": branch,
         "git_mode": mode,
         "configuration": config,
+        "sync_strategy": strategy,
+        "sync_before_build": sync_before_build,
+        "allow_stale_build": allow_stale_build,
     }
 
 
@@ -106,6 +118,9 @@ def create_job(
     branch: str = "",
     git_mode: str = "auto",
     configuration: str = "",
+    sync_strategy: str = "",
+    sync_before_build: bool = True,
+    allow_stale_build: bool = False,
     allowed_projects: set[str] | None = None,
 ) -> dict:
     fields = validate_trigger_request(
@@ -113,6 +128,9 @@ def create_job(
         branch=branch,
         git_mode=git_mode,
         configuration=configuration,
+        sync_strategy=sync_strategy,
+        sync_before_build=sync_before_build,
+        allow_stale_build=allow_stale_build,
     )
     if allowed_projects is not None and project_id not in allowed_projects:
         raise BuildJobError("unknown project_id")
@@ -128,11 +146,17 @@ def create_job(
         "branch": fields["branch"],
         "git_mode": fields["git_mode"],
         "configuration": fields["configuration"],
+        "sync_strategy": fields["sync_strategy"],
+        "sync_before_build": fields["sync_before_build"],
+        "allow_stale_build": fields["allow_stale_build"],
         "status": "queued",
         "created_at": _now_iso(),
         "started_at": "",
         "finished_at": "",
         "workspace_path": "",
+        "workspace_commit": "",
+        "workspace_commit_short": "",
+        "remote_commit": "",
         "build_dir": "",
         "error": "",
         "log_path": f".server/build-jobs/{job_id}.log",

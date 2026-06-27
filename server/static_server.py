@@ -48,7 +48,10 @@ from git_api import (  # noqa: E402
     get_project_repo_path,
     git_fetch,
     git_status,
+    git_sync,
     list_branches,
+    sync_preview,
+    workspace_status,
 )
 from login_rate_limit import is_rate_limited, record_failure  # noqa: E402
 from ota_dynamic import parse_ota_artifact_path, render_ota_artifact  # noqa: E402
@@ -58,6 +61,7 @@ from preflight import (  # noqa: E402
     run_preflight,
     validate_preflight_request,
 )
+from server_restart import schedule_restart  # noqa: E402
 from ota_index import (  # noqa: E402
     collect_builds,
     collect_disk_stats,
@@ -461,6 +465,74 @@ class OTAHandler(SimpleHTTPRequestHandler):
         except GitApiError as exc:
             self._send_json(400, {"error": str(exc)})
 
+    def _parse_git_workspace_query(self) -> dict[str, str]:
+        parsed = urlparse(self.path)
+        qs = parse_qs(parsed.query)
+        return {
+            "project_id": qs.get("project", [""])[0].strip(),
+            "branch": qs.get("branch", [""])[0].strip(),
+            "git_mode": qs.get("git_mode", ["auto"])[0].strip() or "auto",
+            "strategy": qs.get("strategy", [""])[0].strip(),
+        }
+
+    def _handle_git_workspace(self) -> None:
+        params = self._parse_git_workspace_query()
+        project_id = params["project_id"]
+        try:
+            repo_path = get_project_repo_path(self._projects_json(), project_id)
+            git_cfg = get_git_config(self._projects_json(), project_id)
+            status = workspace_status(
+                self._projects_json(),
+                project_id,
+                branch=params["branch"],
+                git_mode=params["git_mode"],
+                strategy=params["strategy"],
+                ota_dir=self._ota_dir(),
+            )
+            status["build_locked"] = is_build_locked(self._ota_dir(), project_id)
+            status["active_job"] = active_job_for_project(ROOT, project_id)
+            status["secrets"] = check_secrets_sync(repo_path, git_cfg["secrets_sync"])
+            self._send_json(200, status)
+        except GitApiError as exc:
+            self._send_json(400, {"error": str(exc)})
+
+    def _handle_git_sync_preview(self) -> None:
+        params = self._parse_git_workspace_query()
+        try:
+            preview = sync_preview(
+                self._projects_json(),
+                params["project_id"],
+                branch=params["branch"],
+                git_mode=params["git_mode"],
+                strategy=params["strategy"],
+            )
+            self._send_json(200, preview)
+        except GitApiError as exc:
+            self._send_json(400, {"error": str(exc)})
+
+    def _handle_git_sync(self) -> None:
+        form = self._parse_form_body()
+        if not form:
+            form = self._parse_json_body()
+        if not csrf_valid(self, form):
+            self._reject_csrf()
+            return
+        project_id = str(form.get("project_id", "")).strip()
+        branch = str(form.get("branch", "")).strip()
+        git_mode = str(form.get("git_mode", "auto")).strip() or "auto"
+        strategy = str(form.get("strategy", "")).strip()
+        try:
+            result = git_sync(
+                self._projects_json(),
+                project_id,
+                branch=branch,
+                git_mode=git_mode,
+                strategy=strategy,
+            )
+            self._send_json(200, result)
+        except GitApiError as exc:
+            self._send_json(409, {"ok": False, "error": str(exc)})
+
     def _handle_build_trigger(self) -> None:
         form = self._parse_form_body()
         if not form:
@@ -472,18 +544,53 @@ class OTAHandler(SimpleHTTPRequestHandler):
         branch = str(form.get("branch", "")).strip()
         git_mode = str(form.get("git_mode", "auto")).strip() or "auto"
         configuration = str(form.get("configuration", "")).strip()
+        sync_strategy = str(form.get("sync_strategy", "")).strip()
+        sync_before_build_raw = str(form.get("sync_before_build", "true")).strip().lower()
+        allow_stale_raw = str(form.get("allow_stale_build", "false")).strip().lower()
+        sync_before_build = sync_before_build_raw not in {"0", "false", "no"}
+        allow_stale_build = allow_stale_raw in {"1", "true", "yes"}
         projects = self._projects()
         allowed = set(projects.keys()) if projects else None
 
         try:
             if active_job_for_project(ROOT, project_id):
                 raise BuildJobError("a build job is already active for this project")
+
+            git_cfg = get_git_config(self._projects_json(), project_id)
+            if not sync_before_build and not allow_stale_build:
+                ws = workspace_status(
+                    self._projects_json(),
+                    project_id,
+                    branch=branch,
+                    git_mode=git_mode,
+                    ota_dir=self._ota_dir(),
+                )
+                if ws["sync_status"] in {"behind", "diverged"}:
+                    raise BuildJobError(
+                        "workspace is not in sync with remote — sync first or allow stale build"
+                    )
+
+            effective_strategy = sync_strategy or git_cfg["default_sync_strategy"]
+            if sync_before_build and not allow_stale_build:
+                preview = sync_preview(
+                    self._projects_json(),
+                    project_id,
+                    branch=branch,
+                    git_mode=git_mode,
+                    strategy=effective_strategy,
+                )
+                if not preview.get("ok"):
+                    raise BuildJobError(preview.get("error") or "sync would fail")
+
             job = create_job(
                 ROOT,
                 project_id=project_id,
                 branch=branch,
                 git_mode=git_mode,
                 configuration=configuration,
+                sync_strategy=effective_strategy,
+                sync_before_build=sync_before_build,
+                allow_stale_build=allow_stale_build,
                 allowed_projects=allowed,
             )
             schedule_job(ROOT, job["id"])
@@ -635,6 +742,12 @@ class OTAHandler(SimpleHTTPRequestHandler):
         if path == "/api/git/branches":
             self._handle_git_branches()
             return
+        if path == "/api/git/workspace":
+            self._handle_git_workspace()
+            return
+        if path == "/api/git/sync/preview":
+            self._handle_git_sync_preview()
+            return
         if path == "/api/builds/jobs":
             self._handle_build_jobs_list()
             return
@@ -700,6 +813,9 @@ class OTAHandler(SimpleHTTPRequestHandler):
             return
         if path == "/api/git/fetch":
             self._handle_git_fetch()
+            return
+        if path == "/api/git/sync":
+            self._handle_git_sync()
             return
         if path == "/api/builds/trigger":
             self._handle_build_trigger()
