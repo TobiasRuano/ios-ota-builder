@@ -732,8 +732,8 @@ _BUILD_SCRIPT_BODY = """
   document.addEventListener("click", function (e) {
     var toggleBtn = e.target.closest(".btn-new-build-toggle, .btn-git-workspace-toggle");
     if (toggleBtn) {
-      var togglePanel = findPanelForToggle(toggleBtn);
-      if (togglePanel) togglePanel(togglePanel);
+      var panelToToggle = findPanelForToggle(toggleBtn);
+      if (panelToToggle) togglePanel(panelToToggle);
       return;
     }
 
