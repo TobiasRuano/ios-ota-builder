@@ -37,14 +37,32 @@ repo_dirty_count() {
   printf '%s\n' "$porcelain" | wc -l | tr -d ' '
 }
 
+current_branch() {
+  local repo_path="$1"
+  git -C "$repo_path" rev-parse --abbrev-ref HEAD 2>/dev/null || echo ""
+}
+
+branch_checked_out_at() {
+  local base_path="$1"
+  local branch="$2"
+  [[ -n "$branch" && "$(current_branch "$base_path")" == "$branch" ]]
+}
+
 resolve_git_mode() {
   local requested="$1"
   local base_path="$2"
+  local branch="${3:-}"
 
   case "$requested" in
     auto)
       if [[ "$(repo_dirty_count "$base_path")" -gt 0 ]]; then
-        echo "worktree"
+        # Git cannot attach a second worktree to a branch already checked out
+        # in the main repo — build in-place so uncommitted changes are included.
+        if branch_checked_out_at "$base_path" "$branch" || [[ -z "$branch" ]]; then
+          echo "checkout"
+        else
+          echo "worktree"
+        fi
       else
         echo "checkout"
       fi
@@ -100,6 +118,12 @@ prepare_worktree() {
   local branch="$2"
   local remote="$3"
   local worktree_base="$4"
+
+  if branch_checked_out_at "$base_path" "$branch"; then
+    log "Branch $branch is checked out in main repo — building in-place (worktree unavailable)"
+    printf '%s\n' "$(cd "$base_path" && pwd)"
+    return 0
+  fi
 
   if [[ -z "$worktree_base" ]]; then
     worktree_base="${HOME}/.ota-worktrees/${PROJECT_ID}"
@@ -171,7 +195,7 @@ main() {
 
   local base_path="$PROJECT_PATH"
   local mode
-  mode="$(resolve_git_mode "$git_mode" "$base_path")"
+  mode="$(resolve_git_mode "$git_mode" "$base_path" "$branch")"
   log "Git workspace mode: $mode (requested: ${git_mode:-auto})"
 
   case "$mode" in

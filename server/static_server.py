@@ -74,6 +74,7 @@ from session import (  # noqa: E402
     get_session_id_from_handler,
     session_cookie_header,
 )
+from server_restart import schedule_restart  # noqa: E402
 from ui_theme import login_html  # noqa: E402
 
 SERVER_START_MONO: float = 0.0
