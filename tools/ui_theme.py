@@ -534,8 +534,13 @@ def css_cards() -> str:
 }
 
 .build-notes {
-  margin-top: .5rem;
+  margin-top: .35rem;
   font-size: .82rem;
+}
+
+table.builds-table tr.build-notes-row td {
+  padding-top: 0;
+  padding-bottom: .75rem;
 }
 
 .build-notes summary {
@@ -613,8 +618,35 @@ table.builds-table th {
 
 table.builds-table td {
   padding: .75rem 1.25rem;
-  border-bottom: 1px solid var(--border-subtle);
   vertical-align: top;
+}
+
+table.builds-table tbody.build-entry {
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+table.builds-table tbody.build-entry:last-child {
+  border-bottom: none;
+}
+
+table.builds-table tbody.build-entry:hover td {
+  background: var(--surface-muted);
+}
+
+table.builds-table tbody.build-entry.build-entry-failed td {
+  background: color-mix(in srgb, var(--badge-failed-bg) 35%, transparent);
+}
+
+table.builds-table tbody.build-entry.build-entry-failed:hover td {
+  background: color-mix(in srgb, var(--badge-failed-bg) 55%, transparent);
+}
+
+table.builds-table tbody.build-entry.build-entry-in-progress td {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+table.builds-table tbody.build-entry.build-entry-in-progress:hover td {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 table.builds-table td.cell-truncate {
@@ -641,24 +673,12 @@ table.builds-table td.cell-actions .actions {
   justify-content: flex-end;
 }
 
-table.builds-table tbody tr:last-child td { border-bottom: none; }
-
-table.builds-table tbody tr:hover td { background: var(--surface-muted); }
+table.builds-table tbody tr.build-row-in-progress td {
+  background: inherit;
+}
 
 table.builds-table tbody tr.build-row-failed td {
-  background: color-mix(in srgb, var(--badge-failed-bg) 35%, transparent);
-}
-
-table.builds-table tbody tr.build-row-failed:hover td {
-  background: color-mix(in srgb, var(--badge-failed-bg) 55%, transparent);
-}
-
-table.builds-table tbody tr.build-row-in-progress td {
-  background: color-mix(in srgb, var(--accent) 6%, transparent);
-}
-
-table.builds-table tbody tr.build-row-in-progress:hover td {
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  background: inherit;
 }
 
 .build-progress {
@@ -802,7 +822,7 @@ table.builds-table tbody tr.build-row-in-progress:hover td {
   }
 
   table.builds-table,
-  table.builds-table tbody {
+  table.builds-table tbody.build-entry {
     display: block;
   }
 
@@ -810,8 +830,7 @@ table.builds-table tbody tr.build-row-in-progress:hover td {
     display: none;
   }
 
-  table.builds-table tbody tr {
-    display: block;
+  table.builds-table tbody.build-entry {
     margin-bottom: .75rem;
     border: 1px solid var(--border-subtle);
     border-radius: 8px;
@@ -819,19 +838,33 @@ table.builds-table tbody tr.build-row-in-progress:hover td {
     overflow: hidden;
   }
 
-  table.builds-table tbody tr:last-child {
+  table.builds-table tbody.build-entry:last-child {
     margin-bottom: 0;
   }
 
-  table.builds-table tbody tr:hover td {
+  table.builds-table tbody.build-entry tr {
+    display: block;
+  }
+
+  table.builds-table tbody.build-entry tr.build-notes-row td {
+    display: block;
+    padding: .35rem 1rem 1rem;
+    border-bottom: none;
+  }
+
+  table.builds-table tbody.build-entry tr.build-notes-row td::before {
+    content: none;
+  }
+
+  table.builds-table tbody.build-entry:hover td {
     background: transparent;
   }
 
-  table.builds-table tbody tr.build-row-failed {
+  table.builds-table tbody.build-entry.build-entry-failed {
     background: color-mix(in srgb, var(--badge-failed-bg) 35%, var(--surface));
   }
 
-  table.builds-table tbody tr.build-row-failed:hover {
+  table.builds-table tbody.build-entry.build-entry-failed:hover {
     background: color-mix(in srgb, var(--badge-failed-bg) 55%, var(--surface));
   }
 
