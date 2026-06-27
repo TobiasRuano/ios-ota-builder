@@ -153,8 +153,11 @@ fetch_remote() {
   local repo_path="$1"
   local remote="$2"
   if git -C "$repo_path" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    git -C "$repo_path" fetch --prune "$remote" >&2
-    write_fetch_state "$repo_path" "$remote"
+    if git -C "$repo_path" fetch --prune "$remote" >&2; then
+      write_fetch_state "$repo_path" "$remote"
+    else
+      log "Warning: git fetch failed for remote '$remote' — continuing with local state" >&2
+    fi
   fi
 }
 
@@ -212,7 +215,15 @@ sync_branch_in_repo() {
 
   case "$effective_strategy" in
     match_remote)
-      git -C "$repo_path" reset --hard "$remote_ref" >&2
+      if [[ "$(repo_dirty_count "$repo_path")" -gt 0 ]]; then
+        log "Warning: working tree is dirty — downgrading match_remote to fast_forward to preserve local changes" >&2
+        if ! git -C "$repo_path" merge --ff-only "$remote_ref" >&2; then
+          log_error "Fast-forward sync failed (branch diverged). Sync manually or commit/stash changes first."
+          exit "$EC_ENVIRONMENT"
+        fi
+      else
+        git -C "$repo_path" reset --hard "$remote_ref" >&2
+      fi
       ;;
     fast_forward)
       if ! git -C "$repo_path" merge --ff-only "$remote_ref" >&2; then
@@ -353,8 +364,8 @@ checkout_branch() {
   local effective_branch
   effective_branch="$(resolve_effective_branch "$repo_path" "$branch")"
   if [[ -z "$effective_branch" || "$effective_branch" == "HEAD" ]]; then
-    log_error "Could not resolve branch for sync"
-    exit "$EC_ENVIRONMENT"
+    log "Warning: repository is in detached HEAD state and no branch was requested — skipping sync" >&2
+    return 0
   fi
 
   sync_branch_in_repo "$repo_path" "$effective_branch" "$remote" "$strategy" >/dev/null

@@ -546,10 +546,6 @@ class OTAHandler(SimpleHTTPRequestHandler):
         git_mode = str(form.get("git_mode", "auto")).strip() or "auto"
         configuration = str(form.get("configuration", "")).strip()
         sync_strategy = str(form.get("sync_strategy", "")).strip()
-        sync_before_build_raw = str(form.get("sync_before_build", "true")).strip().lower()
-        allow_stale_raw = str(form.get("allow_stale_build", "false")).strip().lower()
-        sync_before_build = sync_before_build_raw not in {"0", "false", "no"}
-        allow_stale_build = allow_stale_raw in {"1", "true", "yes"}
         projects = self._projects()
         allowed = set(projects.keys()) if projects else None
 
@@ -558,6 +554,17 @@ class OTAHandler(SimpleHTTPRequestHandler):
                 raise BuildJobError("a build job is already active for this project")
 
             git_cfg = get_git_config(self._projects_json(), project_id)
+
+            _raw_sync = form.get("sync_before_build")
+            _raw_stale = form.get("allow_stale_build")
+            if _raw_sync is None:
+                sync_before_build = git_cfg["require_sync_before_build"]
+            else:
+                sync_before_build = str(_raw_sync).strip().lower() not in {"0", "false", "no"}
+            if _raw_stale is None:
+                allow_stale_build = git_cfg["allow_stale_build"]
+            else:
+                allow_stale_build = str(_raw_stale).strip().lower() in {"1", "true", "yes"}
             if not sync_before_build and not allow_stale_build:
                 ws = workspace_status(
                     self._projects_json(),
