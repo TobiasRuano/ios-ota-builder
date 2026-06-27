@@ -53,14 +53,32 @@ repo_dirty_count() {
   printf '%s\n' "$porcelain" | wc -l | tr -d ' '
 }
 
+current_branch() {
+  local repo_path="$1"
+  git -C "$repo_path" rev-parse --abbrev-ref HEAD 2>/dev/null || echo ""
+}
+
+branch_checked_out_at() {
+  local base_path="$1"
+  local branch="$2"
+  [[ -n "$branch" && "$(current_branch "$base_path")" == "$branch" ]]
+}
+
 resolve_git_mode() {
   local requested="$1"
   local base_path="$2"
+  local branch="${3:-}"
 
   case "$requested" in
     auto)
       if [[ "$(repo_dirty_count "$base_path")" -gt 0 ]]; then
-        echo "worktree"
+        # Git cannot attach a second worktree to a branch already checked out
+        # in the main repo — build in-place so uncommitted changes are included.
+        if branch_checked_out_at "$base_path" "$branch" || [[ -z "$branch" ]]; then
+          echo "checkout"
+        else
+          echo "worktree"
+        fi
       else
         echo "checkout"
       fi
@@ -269,6 +287,18 @@ prepare_worktree() {
   local worktree_base="$4"
   local strategy="$5"
 
+  if branch_checked_out_at "$base_path" "$branch"; then
+    log "Branch $branch is checked out in main repo — building in-place (worktree unavailable)"
+    local effective_branch
+    effective_branch="$(resolve_effective_branch "$base_path" "$branch")"
+    fetch_remote "$base_path" "$remote"
+    if [[ -n "$effective_branch" ]]; then
+      sync_branch_in_repo "$base_path" "$effective_branch" "$remote" "$strategy" >/dev/null
+    fi
+    printf '%s\n' "$(cd "$base_path" && pwd)"
+    return 0
+  fi
+
   if [[ -z "$worktree_base" ]]; then
     worktree_base="${HOME}/.ota-worktrees/${PROJECT_ID}"
   fi
@@ -438,8 +468,8 @@ main() {
 
   local base_path="$PROJECT_PATH"
   local mode effective_branch workspace_path=""
-  mode="$(resolve_git_mode "$GIT_MODE" "$base_path")"
   effective_branch="$(resolve_effective_branch "$base_path" "$BRANCH")"
+  mode="$(resolve_git_mode "$GIT_MODE" "$base_path" "$BRANCH")"
   log "Git workspace mode: $mode (requested: ${GIT_MODE:-auto}), sync: $STRATEGY" >&2
 
   case "$mode" in

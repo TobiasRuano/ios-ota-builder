@@ -150,7 +150,7 @@ def slugify_branch(branch: str) -> str:
     return slug[:80]
 
 
-def resolve_git_mode(requested: str, base_path: Path) -> str:
+def resolve_git_mode(requested: str, base_path: Path, branch: str = "") -> str:
     mode = requested.strip() or "auto"
     if mode != "auto":
         if mode not in GIT_MODES:
@@ -158,6 +158,9 @@ def resolve_git_mode(requested: str, base_path: Path) -> str:
         return mode
     status = git_status(base_path)
     if status["dirty_count"] > 0:
+        effective = resolve_effective_branch(base_path, branch)
+        if not branch.strip() or status["branch"] == effective:
+            return "checkout"
         return "worktree"
     return "checkout"
 
@@ -179,7 +182,7 @@ def resolve_build_workspace_path(
     git_mode: str,
     worktree_base: str,
 ) -> Path:
-    mode = resolve_git_mode(git_mode, base_path)
+    mode = resolve_git_mode(git_mode, base_path, branch)
     if mode in {"checkout", "stash_checkout"}:
         return base_path
     wt_root = Path(worktree_base).expanduser() if worktree_base else Path.home() / ".ota-worktrees" / project_id
@@ -335,7 +338,7 @@ def workspace_status(
     validate_project_id(project_id)
     git_cfg = get_git_config(projects_json, project_id)
     base_path = get_project_repo_path(projects_json, project_id)
-    mode = resolve_git_mode(git_mode, base_path)
+    mode = resolve_git_mode(git_mode, base_path, branch)
     effective_branch = resolve_effective_branch(base_path, branch)
     workspace_path = resolve_build_workspace_path(
         base_path,

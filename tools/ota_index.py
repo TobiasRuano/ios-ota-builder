@@ -332,7 +332,7 @@ _BUILD_SCRIPT_BODY = """
     + '<col class="col-build"><col class="col-branch"><col class="col-commit">'
     + '<col class="col-version"><col class="col-duration"><col class="col-size"><col class="col-actions">'
     + '</colgroup><thead><tr><th>Build</th><th>Branch</th><th>Commit</th>'
-    + '<th>Version</th><th>Duration</th><th>Size</th><th>Actions</th></tr></thead><tbody></tbody></table>';
+    + '<th>Version</th><th>Duration</th><th>Size</th><th>Actions</th></tr></thead></table>';
 
   function escapeHtml(text) {
     var d = document.createElement("div");
@@ -347,14 +347,14 @@ _BUILD_SCRIPT_BODY = """
   function ensureBuildsTable(card) {
     if (!card) return null;
     var wrap = card.querySelector(".table-wrap");
-    if (wrap) return wrap.querySelector("tbody");
+    if (wrap) return wrap.querySelector("table.builds-table");
     var empty = card.querySelector(".empty-state");
     if (empty) empty.remove();
     wrap = document.createElement("div");
     wrap.className = "table-wrap";
     wrap.innerHTML = BUILDS_TABLE_HTML;
     card.appendChild(wrap);
-    return wrap.querySelector("tbody");
+    return wrap.querySelector("table.builds-table");
   }
 
   function findBuildRow(card, jobId) {
@@ -364,8 +364,8 @@ _BUILD_SCRIPT_BODY = """
 
   function insertBuildRow(panel, job) {
     var card = findProjectCard(panel);
-    var tbody = ensureBuildsTable(card);
-    if (!tbody || !job || !job.id) return;
+    var table = ensureBuildsTable(card);
+    if (!table || !job || !job.id) return;
     if (findBuildRow(card, job.id)) return;
     var branch = job.branch || "—";
     var config = job.configuration || "";
@@ -392,7 +392,15 @@ _BUILD_SCRIPT_BODY = """
       + '<td class="meta-cell" data-label="Duration">—</td>'
       + '<td class="meta-cell" data-label="Size">—</td>'
       + '<td class="cell-actions">—</td>';
-    tbody.insertBefore(row, tbody.firstChild);
+    var tbody = document.createElement("tbody");
+    tbody.className = "build-entry build-entry-in-progress";
+    tbody.appendChild(row);
+    var firstEntry = table.querySelector("tbody");
+    if (firstEntry) {
+      table.insertBefore(tbody, firstEntry);
+    } else {
+      table.appendChild(tbody);
+    }
   }
 
   function updateBuildRow(panel, job) {
@@ -426,6 +434,11 @@ _BUILD_SCRIPT_BODY = """
     if (!row) return;
     row.classList.remove("build-row-in-progress");
     row.classList.add("build-row-failed");
+    var entry = row.closest("tbody");
+    if (entry) {
+      entry.classList.remove("build-entry-in-progress");
+      entry.classList.add("build-entry-failed");
+    }
     var badgeGroup = row.querySelector(".badge-group");
     if (badgeGroup) {
       var html = '<span class="status-badge badge-failed">failed</span>';
@@ -1924,7 +1937,7 @@ def render_index(
             '<div class="table-wrap"><table class="builds-table">'
             f"{_BUILDS_TABLE_COLGROUP}"
             "<thead><tr><th>Build</th><th>Branch</th><th>Commit</th>"
-            "<th>Version</th><th>Duration</th><th>Size</th><th>Actions</th></tr></thead><tbody>"
+            "<th>Version</th><th>Duration</th><th>Size</th><th>Actions</th></tr></thead>"
         )
         for b in builds:
             is_failure = b.get("status") == "failure"
@@ -1967,9 +1980,9 @@ def render_index(
 
             build_cell = (
                 f'<div class="build-name" title="{full_name}">'
-                f'<span class="build-label">{label}</span>{badges_html}'
-                f"{_render_build_notes(b)}</div>"
+                f'<span class="build-label">{label}</span>{badges_html}</div>'
             )
+            notes_html = _render_build_notes(b)
 
             duration_cell = html.escape(_format_duration(b.get("duration_seconds")))
             size_cell = html.escape(_format_ipa_size(b.get("ipa_size_bytes")))
@@ -1980,6 +1993,11 @@ def render_index(
                 f"({html.escape(str(b.get('build_number') or '—'))})"
             )
 
+            entry_class = "build-entry"
+            if is_failure:
+                entry_class += " build-entry-failed"
+
+            sections.append(f'<tbody class="{entry_class}">')
             sections.append(
                 f"<tr{row_class}>"
                 f"<td>{build_cell}</td>"
@@ -1991,7 +2009,13 @@ def render_index(
                 f'<td class="meta-cell" data-label="Size">{size_cell}</td>'
                 f'<td class="cell-actions">{actions}</td></tr>'
             )
-        sections.append("</tbody></table></div></section>")
+            if notes_html:
+                sections.append(
+                    f'<tr class="build-notes-row">'
+                    f'<td colspan="7">{notes_html}</td></tr>'
+                )
+            sections.append("</tbody>")
+        sections.append("</table></div></section>")
 
     panel_status = server_status
     if panel_status is None and ota_dir is not None:
