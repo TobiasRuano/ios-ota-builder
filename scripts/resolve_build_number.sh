@@ -87,29 +87,23 @@ write_next_build() {
 get_project_build_number() {
   local project_file="$PROJECT_PATH/$XCODEPROJ"
   local raw_value probe_ok=0 published_max
-  local -a derived_data_args=()
+  local -a show_build_settings_cmd
+
+  show_build_settings_cmd=(
+    "$XCODEBUILD"
+    -showBuildSettings
+    -project "$project_file"
+    -scheme "$SCHEME"
+    -configuration "$CONFIGURATION"
+  )
 
   if [[ -n "${DERIVED_DATA:-}" ]]; then
-    derived_data_args=(-derivedDataPath "$DERIVED_DATA")
+    show_build_settings_cmd+=(-derivedDataPath "$DERIVED_DATA")
   fi
 
   set +e
-  if [[ -n "${DERIVED_DATA:-}" ]]; then
-    raw_value="$("$XCODEBUILD" -showBuildSettings \
-      -project "$project_file" \
-      -scheme "$SCHEME" \
-      -configuration "$CONFIGURATION" \
-      -derivedDataPath "$DERIVED_DATA" \
-      2>/dev/null \
-      | awk -F' = ' '/^[[:space:]]*CURRENT_PROJECT_VERSION = / { print $2; exit }')"
-  else
-    raw_value="$("$XCODEBUILD" -showBuildSettings \
-      -project "$project_file" \
-      -scheme "$SCHEME" \
-      -configuration "$CONFIGURATION" \
-      2>/dev/null \
-      | awk -F' = ' '/^[[:space:]]*CURRENT_PROJECT_VERSION = / { print $2; exit }')"
-  fi
+  raw_value="$("${show_build_settings_cmd[@]}" 2>/dev/null \
+    | awk -F' = ' '/^[[:space:]]*CURRENT_PROJECT_VERSION = / { print $2; exit }')"
   probe_ok=$?
   set -e
 

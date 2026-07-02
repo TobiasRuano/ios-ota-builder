@@ -58,17 +58,51 @@ trim() {
   printf '%s' "$value"
 }
 
-app_target="$(printf '%s\n' "$settings" | sed -nE 's/^Build settings for action .* and target (.+):$/\1/p' | head -1)"
-app_generate="$(printf '%s\n' "$settings" | sed -nE 's/^[[:space:]]*GENERATE_INFOPLIST_FILE[[:space:]]*=[[:space:]]*(.+)$/\1/p' | head -1)"
-app_infoplist="$(printf '%s\n' "$settings" | sed -nE 's/^[[:space:]]*INFOPLIST_FILE[[:space:]]*=[[:space:]]*(.+)$/\1/p' | head -1)"
-product_type="$(printf '%s\n' "$settings" | sed -nE 's/^[[:space:]]*PRODUCT_TYPE[[:space:]]*=[[:space:]]*(.+)$/\1/p' | head -1)"
+capture_application_block() {
+  if [[ -n "${target_name:-}" && "${product_type:-}" == "com.apple.product-type.application" && -z "${app_target:-}" ]]; then
+    app_target="$target_name"
+    app_generate="${generate:-NO}"
+    app_infoplist="${infoplist:-}"
+  fi
+}
 
-app_target="$(trim "${app_target:-}")"
-app_generate="$(trim "${app_generate:-NO}")"
-app_infoplist="$(trim "${app_infoplist:-}")"
-product_type="$(trim "${product_type:-}")"
+app_target=""
+app_generate=""
+app_infoplist=""
+target_name=""
+product_type=""
+generate=""
+infoplist=""
 
-if [[ "$product_type" != "com.apple.product-type.application" || -z "$app_target" ]]; then
+while IFS= read -r line; do
+  if [[ "$line" =~ ^Build\ settings\ for\ action\ .*\ and\ target\ (.+):$ ]]; then
+    capture_application_block
+    target_name="$(trim "${BASH_REMATCH[1]}")"
+    product_type=""
+    generate=""
+    infoplist=""
+    continue
+  fi
+
+  [[ -z "${target_name}" ]] && continue
+
+  if [[ "$line" =~ ^[[:space:]]*PRODUCT_TYPE[[:space:]]*=[[:space:]]*(.+)$ ]]; then
+    product_type="$(trim "${BASH_REMATCH[1]}")"
+    continue
+  fi
+  if [[ "$line" =~ ^[[:space:]]*GENERATE_INFOPLIST_FILE[[:space:]]*=[[:space:]]*(.+)$ ]]; then
+    generate="$(trim "${BASH_REMATCH[1]}")"
+    continue
+  fi
+  if [[ "$line" =~ ^[[:space:]]*INFOPLIST_FILE[[:space:]]*=[[:space:]]*(.+)$ ]]; then
+    infoplist="$(trim "${BASH_REMATCH[1]}")"
+    continue
+  fi
+done <<<"$settings"
+
+capture_application_block
+
+if [[ -z "$app_target" ]]; then
   log_error "Could not find an application target in scheme $SCHEME"
   exit "$EC_ENVIRONMENT"
 fi
