@@ -11,6 +11,15 @@ source "$OTA_BUILDER_ROOT/scripts/lib/common.sh"
 load_config
 load_project "${PROJECT_ID:?PROJECT_ID required}"
 
+if [[ -n "${OTA_WORKSPACE_PATH:-}" ]]; then
+  if [[ ! -d "$OTA_WORKSPACE_PATH" ]]; then
+    log_error "Workspace path not found: $OTA_WORKSPACE_PATH"
+    exit "$EC_ENVIRONMENT"
+  fi
+  PROJECT_PATH="$(cd "$OTA_WORKSPACE_PATH" && pwd)"
+  export PROJECT_PATH
+fi
+
 PROJECT_FILE="$PROJECT_PATH/$XCODEPROJ"
 WORK_DIR="$BUILD_OUTPUT_DIR/work"
 DERIVED_DATA="$WORK_DIR/DerivedData"

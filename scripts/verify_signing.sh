@@ -19,6 +19,15 @@ fi
 
 load_project "$PROJECT_ID"
 
+if [[ -n "${OTA_WORKSPACE_PATH:-}" ]]; then
+  if [[ ! -d "$OTA_WORKSPACE_PATH" ]]; then
+    log_error "Workspace path not found: $OTA_WORKSPACE_PATH"
+    exit "$EC_ENVIRONMENT"
+  fi
+  PROJECT_PATH="$(cd "$OTA_WORKSPACE_PATH" && pwd)"
+  export PROJECT_PATH
+fi
+
 log "Verifying signing environment for $DISPLAY_NAME ($PROJECT_ID)"
 
 # Xcode / xcodebuild
@@ -54,7 +63,8 @@ if echo "$IDENTITIES" | grep -qiE "Apple Distribution|iPhone Distribution"; then
 if $HAS_DIST; then
   log "Signing identity: Apple Distribution found (preferred for Ad Hoc export)"
 elif $HAS_DEV; then
-  log "Signing identity: Apple Development found (Xcode may create Distribution on export)"
+  log "Signing identity: Apple Development found"
+  log "Export method fallback: debugging (no local Distribution identity found)"
 else
   log_error "No Apple Development or Distribution identity found."
   log "Open Xcode → Settings → Accounts → Manage Certificates → + Apple Distribution"
@@ -82,6 +92,11 @@ fi
 log ""
 log "Signing preflight passed for $PROJECT_ID."
 log "Export uses automatic signing with -allowProvisioningUpdates."
+if $HAS_DIST; then
+  log "Preferred export method: ad-hoc"
+else
+  log "Fallback export method: debugging"
+fi
 log ""
 log "If Ad Hoc export fails:"
 log "  1. Register iPhone UDID at developer.apple.com → Devices"

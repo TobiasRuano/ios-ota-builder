@@ -20,6 +20,15 @@ fi
 load_config
 load_project "$PROJECT_ID"
 
+if [[ -n "${OTA_WORKSPACE_PATH:-}" ]]; then
+  if [[ ! -d "$OTA_WORKSPACE_PATH" ]]; then
+    log_error "Workspace path not found: $OTA_WORKSPACE_PATH"
+    exit "$EC_ENVIRONMENT"
+  fi
+  PROJECT_PATH="$(cd "$OTA_WORKSPACE_PATH" && pwd)"
+  export PROJECT_PATH
+fi
+
 if [[ "${AUTO_INCREMENT_BUILD:-false}" != "true" ]]; then
   exit "$EC_SUCCESS"
 fi
@@ -42,55 +51,24 @@ if [[ -z "$settings" ]]; then
   exit "$EC_ENVIRONMENT"
 fi
 
-# Parse per-target blocks from xcodebuild -showBuildSettings output.
-app_target=""
-app_generate=""
-app_infoplist=""
+trim() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s' "$value"
+}
 
-while IFS= read -r line; do
-  if [[ "$line" =~ ^Build\ settings\ for\ action\ .*\ and\ target\ (.+):$ ]]; then
-    target_name="${BASH_REMATCH[1]}"
-    product_type=""
-    generate=""
-    infoplist=""
-    continue
-  fi
-  if [[ "$line" =~ ^[[:space:]]*PRODUCT_TYPE[[:space:]]*=[[:space:]]*(.+)$ ]]; then
-    product_type="${BASH_REMATCH[1]}"
-    product_type="${product_type#"${product_type%%[![:space:]]*}"}"
-    product_type="${product_type%"${product_type##*[![:space:]]}"}"
-  fi
-  if [[ "$line" =~ ^[[:space:]]*GENERATE_INFOPLIST_FILE[[:space:]]*=[[:space:]]*(.+)$ ]]; then
-    generate="${BASH_REMATCH[1]}"
-    generate="${generate#"${generate%%[![:space:]]*}"}"
-    generate="${generate%"${generate##*[![:space:]]}"}"
-  fi
-  if [[ "$line" =~ ^[[:space:]]*INFOPLIST_FILE[[:space:]]*=[[:space:]]*(.+)$ ]]; then
-    infoplist="${BASH_REMATCH[1]}"
-    infoplist="${infoplist#"${infoplist%%[![:space:]]*}"}"
-    infoplist="${infoplist%"${infoplist##*[![:space:]]}"}"
-  fi
-  if [[ "$line" =~ ^[[:space:]]*$ ]] && [[ -n "${target_name:-}" ]] && [[ -n "${product_type:-}" ]]; then
-    if [[ "$product_type" == "com.apple.product-type.application" ]]; then
-      app_target="$target_name"
-      app_generate="${generate:-NO}"
-      app_infoplist="${infoplist:-}"
-    fi
-    target_name=""
-    product_type=""
-    generate=""
-    infoplist=""
-  fi
-done <<<"$settings"
+app_target="$(printf '%s\n' "$settings" | sed -nE 's/^Build settings for action .* and target (.+):$/\1/p' | head -1)"
+app_generate="$(printf '%s\n' "$settings" | sed -nE 's/^[[:space:]]*GENERATE_INFOPLIST_FILE[[:space:]]*=[[:space:]]*(.+)$/\1/p' | head -1)"
+app_infoplist="$(printf '%s\n' "$settings" | sed -nE 's/^[[:space:]]*INFOPLIST_FILE[[:space:]]*=[[:space:]]*(.+)$/\1/p' | head -1)"
+product_type="$(printf '%s\n' "$settings" | sed -nE 's/^[[:space:]]*PRODUCT_TYPE[[:space:]]*=[[:space:]]*(.+)$/\1/p' | head -1)"
 
-# Capture the last target block if output does not end with a blank line.
-if [[ -n "${target_name:-}" && "${product_type:-}" == "com.apple.product-type.application" ]]; then
-  app_target="$target_name"
-  app_generate="${generate:-NO}"
-  app_infoplist="${infoplist:-}"
-fi
+app_target="$(trim "${app_target:-}")"
+app_generate="$(trim "${app_generate:-NO}")"
+app_infoplist="$(trim "${app_infoplist:-}")"
+product_type="$(trim "${product_type:-}")"
 
-if [[ -z "$app_target" ]]; then
+if [[ "$product_type" != "com.apple.product-type.application" || -z "$app_target" ]]; then
   log_error "Could not find an application target in scheme $SCHEME"
   exit "$EC_ENVIRONMENT"
 fi
