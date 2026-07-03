@@ -87,19 +87,22 @@ write_next_build() {
 get_project_build_number() {
   local project_file="$PROJECT_PATH/$XCODEPROJ"
   local raw_value probe_ok=0 published_max
-  local -a derived_data_args=()
+  local -a show_build_settings_cmd
+
+  show_build_settings_cmd=(
+    "$XCODEBUILD"
+    -showBuildSettings
+    -project "$project_file"
+    -scheme "$SCHEME"
+    -configuration "$CONFIGURATION"
+  )
 
   if [[ -n "${DERIVED_DATA:-}" ]]; then
-    derived_data_args=(-derivedDataPath "$DERIVED_DATA")
+    show_build_settings_cmd+=(-derivedDataPath "$DERIVED_DATA")
   fi
 
   set +e
-  raw_value="$("$XCODEBUILD" -showBuildSettings \
-    -project "$project_file" \
-    -scheme "$SCHEME" \
-    -configuration "$CONFIGURATION" \
-    "${derived_data_args[@]}" \
-    2>/dev/null \
+  raw_value="$("${show_build_settings_cmd[@]}" 2>/dev/null \
     | awk -F' = ' '/^[[:space:]]*CURRENT_PROJECT_VERSION = / { print $2; exit }')"
   probe_ok=$?
   set -e
@@ -206,6 +209,15 @@ cmd_rollback() {
 main() {
   load_config
   load_project "${PROJECT_ID:?PROJECT_ID required}"
+
+  if [[ -n "${OTA_WORKSPACE_PATH:-}" ]]; then
+    if [[ ! -d "$OTA_WORKSPACE_PATH" ]]; then
+      log_error "Workspace path not found: $OTA_WORKSPACE_PATH"
+      exit "$EC_ENVIRONMENT"
+    fi
+    PROJECT_PATH="$(cd "$OTA_WORKSPACE_PATH" && pwd)"
+    export PROJECT_PATH
+  fi
 
   case "${1:-}" in
     resolve)

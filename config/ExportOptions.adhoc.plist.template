@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>method</key>
-	<string>ad-hoc</string>
+	<string>EXPORT_METHOD_PLACEHOLDER</string>
 	<key>teamID</key>
 	<string>TEAM_ID_PLACEHOLDER</string>
 	<key>signingStyle</key>

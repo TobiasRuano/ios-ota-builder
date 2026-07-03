@@ -30,9 +30,23 @@ EXPORT_OPTIONS="$BUILD_OUTPUT_DIR/work/ExportOptions.adhoc.plist"
 TEMPLATE="$OTA_BUILDER_ROOT/config/ExportOptions.adhoc.plist.template"
 
 mkdir -p "$EXPORT_DIR" "$(dirname "$EXPORT_OPTIONS")"
-sed "s/TEAM_ID_PLACEHOLDER/$TEAM_ID/g" "$TEMPLATE" >"$EXPORT_OPTIONS"
 
-log "Exporting IPA (Ad Hoc)..."
+EXPORT_METHOD="${OTA_EXPORT_METHOD:-}"
+if [[ -z "$EXPORT_METHOD" ]]; then
+  IDENTITIES="$(security find-identity -v -p codesigning 2>/dev/null || true)"
+  if echo "$IDENTITIES" | grep -qiE "Apple Distribution|iPhone Distribution"; then
+    EXPORT_METHOD="ad-hoc"
+  else
+    EXPORT_METHOD="debugging"
+  fi
+fi
+
+sed \
+  -e "s/TEAM_ID_PLACEHOLDER/$TEAM_ID/g" \
+  -e "s/EXPORT_METHOD_PLACEHOLDER/$EXPORT_METHOD/g" \
+  "$TEMPLATE" >"$EXPORT_OPTIONS"
+
+log "Exporting IPA (method: $EXPORT_METHOD)..."
 emit_build_stage exporting
 set +e
 "$XCODEBUILD" -exportArchive \
