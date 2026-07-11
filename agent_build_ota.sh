@@ -134,6 +134,7 @@ on_exit() {
       write_build_status "failure" "${effective_stage:-unknown}" || true
     fi
     print_result_json >&2 || true
+    purge_build_work "$BUILD_OUTPUT_DIR" || true
   fi
   notify_build_result "$ec" || true
   return "$ec"
@@ -260,6 +261,9 @@ main() {
     && [[ -f "$BUILD_OUTPUT_DIR/icon.png" ]]; then
     ICON_REL_PATH="/$PROJECT_ID/$BUILD_DIR_NAME/icon.png"
   fi
+
+  # Drop DerivedData / xcarchive / export — IPA + icon already in build root
+  purge_build_work "$BUILD_OUTPUT_DIR"
 
   # F05: release notes (before manifest — needed on install.html)
   if [[ -n "${OTA_RELEASE_NOTES:-}" ]]; then
