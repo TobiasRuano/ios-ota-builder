@@ -147,6 +147,8 @@ Defaults (`config/local.env`):
 
 Runs at the end of each build and **daily at 03:00** (LaunchAgent `ota-cleanup`).
 
+After each build, `work/` (DerivedData, `.xcarchive`, export staging) is deleted. Retained per build: IPA, `icon.png`, `install.html`, `manifest.plist`, `summary.json`, and logs. Cleanup also strips any leftover `work/` from builds still kept by retention.
+
 The dashboard reflects disk state instantly: manual deletion in Finder or **Delete** button on the web.
 
 ---

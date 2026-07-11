@@ -161,6 +161,7 @@ OTA_STATUS_MIN_DISK_MB=5000   # ota-status warns/exits if free space below this 
 ```
 
 - Automatic cleanup at the end of each build and daily at 03:00 (`ota-cleanup` LaunchAgent).
+- Post-build, `work/` (DerivedData / archive / export) is purged. Each build keeps only IPA, `icon.png`, `install.html`, `manifest.plist`, `summary.json`, and logs; cleanup also removes residual `work/` from retained builds.
 - The dashboard (`dashboard_url` in the build JSON) lists successful builds (with an IPA) and failed builds (with `summary.json` where `status: failure`). Failed rows show a red badge and link to diagnostics and logs — no Install/IPA actions.
 - **Server status panel** (footer on the dashboard): free disk space (GB and % used), server uptime, builds-dir writable flag, and optional tunnel reachability (`OTA_STATUS_PROBE_TUNNEL=1`). Low-disk warning when free space is below `OTA_STATUS_MIN_DISK_MB`. Refreshes on each page load.
 - Failed builds count toward `OTA_KEEP_BUILDS` and `OTA_MAX_AGE_DAYS` like successful builds.

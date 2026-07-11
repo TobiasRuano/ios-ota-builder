@@ -331,6 +331,13 @@ collect_release_notes() {
   printf '%s' "$commits"
 }
 
+purge_build_work() {
+  local dir="${1:-${BUILD_OUTPUT_DIR:-}}"
+  [[ -n "$dir" && -d "$dir/work" ]] || return 0
+  rm -rf "$dir/work"
+  log "Purged build work/ under $dir"
+}
+
 make_build_dir() {
   local dir_name date_prefix
   if [[ -n "${OTA_BUILD_NUMBER:-}" ]]; then
@@ -349,7 +356,7 @@ make_build_dir() {
           "$BUILD_OUTPUT_DIR/diagnostics.md" \
           "$BUILD_OUTPUT_DIR/.ota_failure_reason" \
           "$BUILD_OUTPUT_DIR/build.status"
-    rm -rf "$BUILD_OUTPUT_DIR/work"
+    purge_build_work "$BUILD_OUTPUT_DIR"
   fi
   mkdir -p "$BUILD_OUTPUT_DIR"
   export BUILD_OUTPUT_DIR BUILD_DIR_NAME="$dir_name"

@@ -5,9 +5,32 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
+
+
+def purge_build_work(build_dir: Path) -> bool:
+    """Remove residual Xcode work/ (DerivedData, archive, export) from a retained build."""
+    work = build_dir / "work"
+    if not work.is_dir():
+        return False
+    # rm -rf handles xcframework/SPM trees that shutil.rmtree often cannot
+    # (PermissionError on nested paths such as grpc PrivateHeaders/.../config).
+    result = subprocess.run(
+        ["rm", "-rf", str(work)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        print(
+            f"warning: failed to purge {work}: {result.stderr.strip() or result.stdout.strip()}",
+            file=sys.stderr,
+        )
+        return False
+    return not work.exists()
 
 
 def cleanup_project(project_dir: Path, *, keep: int, max_age_days: int) -> list[Path]:
@@ -31,6 +54,8 @@ def cleanup_project(project_dir: Path, *, keep: int, max_age_days: int) -> list[
         if too_old or over_keep:
             shutil.rmtree(build_dir)
             removed.append(build_dir)
+        else:
+            purge_build_work(build_dir)
 
     return removed
 
