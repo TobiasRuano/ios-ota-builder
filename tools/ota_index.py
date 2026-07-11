@@ -1249,10 +1249,12 @@ def collect_builds(ota_dir: Path, projects_config: dict) -> dict:
         "projects": {},
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
+    ranked_projects: list[tuple[str, dict, tuple[float, int]]] = []
 
     for project_id, meta in projects_config.items():
         project_dir = ota_dir / project_id
         builds: list[dict] = []
+        top_key: tuple[float, int] = (float("-inf"), 0)
         if project_dir.is_dir():
             ranked: list[tuple[dict, tuple[float, int]]] = []
             for build_dir in project_dir.iterdir():
@@ -1261,6 +1263,8 @@ def collect_builds(ota_dir: Path, projects_config: dict) -> dict:
                     ranked.append((entry, _build_sort_key(entry, build_dir)))
             ranked.sort(key=lambda item: item[1], reverse=True)
             builds = [entry for entry, _ in ranked]
+            if ranked:
+                top_key = ranked[0][1]
 
         latest_marked = False
         for entry in builds:
@@ -1268,13 +1272,21 @@ def collect_builds(ota_dir: Path, projects_config: dict) -> dict:
                 entry["is_latest"] = True
                 latest_marked = True
 
-        result["projects"][project_id] = {
-            "display_name": meta.get("display_name", project_id),
-            "repo_url": meta.get("repo_url"),
-            "repo_type": meta.get("repo_type", "github"),
-            "builds": builds,
-        }
+        ranked_projects.append(
+            (
+                project_id,
+                {
+                    "display_name": meta.get("display_name", project_id),
+                    "repo_url": meta.get("repo_url"),
+                    "repo_type": meta.get("repo_type", "github"),
+                    "builds": builds,
+                },
+                top_key,
+            )
+        )
 
+    ranked_projects.sort(key=lambda item: item[2], reverse=True)
+    result["projects"] = {pid: data for pid, data, _ in ranked_projects}
     return result
 
 
