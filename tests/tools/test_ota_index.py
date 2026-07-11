@@ -183,6 +183,31 @@ def test_collect_builds_marks_latest_success(ota_dir: Path, projects_config: dic
     assert latest_build["build_number"] == "42"
 
 
+def test_collect_builds_orders_projects_by_most_recent_build(ota_dir: Path) -> None:
+    projects = {
+        "older-app": {"display_name": "Older App"},
+        "newer-app": {"display_name": "Newer App"},
+        "empty-app": {"display_name": "Empty App"},
+    }
+    write_success_build(
+        ota_dir,
+        "older-app",
+        "06-26-10",
+        date="2025-06-26T12:00:00Z",
+        build_number="10",
+    )
+    write_success_build(
+        ota_dir,
+        "newer-app",
+        "07-11-20",
+        date="2026-07-11T15:00:00Z",
+        build_number="20",
+    )
+
+    data = collect_builds(ota_dir, projects)
+    assert list(data["projects"].keys()) == ["newer-app", "older-app", "empty-app"]
+
+
 def test_collect_disk_stats(ota_dir: Path) -> None:
     stats = collect_disk_stats(ota_dir, min_disk_mb=1)
     assert "free_mb" in stats
