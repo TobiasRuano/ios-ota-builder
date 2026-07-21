@@ -6,6 +6,8 @@
       "xcodeproj": "MyApp.xcodeproj",
       "scheme": "MyApp",
       "configuration": "Release",
+      "debug_configuration": "Debug",
+      "release_configuration": "Release",
       "bundle_id": "com.example.myapp",
       "auto_increment_build": true,
       "repo_url": "https://github.com/user/my-app",
