@@ -118,6 +118,12 @@ Main variables in `config/local.env`:
 
 `team_id` per project in `projects.json` is optional — inherits `APPLE_TEAM_ID` if missing.
 
+### Variantes QA instalables en paralelo
+
+For an internal QA app that must coexist with production/TestFlight, register a second native identity in `projects.json`: a dedicated scheme/configuration, bundle ID, App Group, iCloud container and service credentials. Set `debug_configuration` and `release_configuration` when its names differ from the standard `Debug`/`Release`; `--debug` and `--release` then select those values.
+
+Keep an explicit production project entry as well. The builder does not alter Xcode Cloud workflows; those should continue to select the production scheme and `Release` configuration.
+
 ---
 
 ## Authentication and dashboard

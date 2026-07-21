@@ -108,6 +108,8 @@ load_project() {
   XCODEPROJ="$(jq -r --arg id "$project_id" '.projects[$id].xcodeproj' "$config_file")"
   SCHEME="$(jq -r --arg id "$project_id" '.projects[$id].scheme' "$config_file")"
   CONFIGURATION="$(jq -r --arg id "$project_id" '.projects[$id].configuration' "$config_file")"
+  DEBUG_CONFIGURATION="$(jq -r --arg id "$project_id" '.projects[$id].debug_configuration // "Debug"' "$config_file")"
+  RELEASE_CONFIGURATION="$(jq -r --arg id "$project_id" '.projects[$id].release_configuration // "Release"' "$config_file")"
   BUNDLE_ID="$(jq -r --arg id "$project_id" '.projects[$id].bundle_id' "$config_file")"
   TEAM_ID="$(jq -r --arg id "$project_id" '.projects[$id].team_id // empty' "$config_file")"
   if [[ -z "$TEAM_ID" || "$TEAM_ID" == "null" ]]; then
@@ -118,9 +120,12 @@ load_project() {
     exit "$EC_ENVIRONMENT"
   fi
 
-  if [[ -n "${OTA_CONFIGURATION_OVERRIDE:-}" ]]; then
-    CONFIGURATION="$OTA_CONFIGURATION_OVERRIDE"
-  fi
+  case "${OTA_CONFIGURATION_OVERRIDE:-}" in
+    __DEBUG__) CONFIGURATION="$DEBUG_CONFIGURATION" ;;
+    __RELEASE__) CONFIGURATION="$RELEASE_CONFIGURATION" ;;
+    "") ;;
+    *) CONFIGURATION="$OTA_CONFIGURATION_OVERRIDE" ;;
+  esac
 
   AUTO_INCREMENT_BUILD="$(jq -r --arg id "$project_id" '.projects[$id].auto_increment_build // false' "$config_file")"
   if [[ "$AUTO_INCREMENT_BUILD" != "true" ]]; then
