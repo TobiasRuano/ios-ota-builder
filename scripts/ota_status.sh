@@ -116,7 +116,7 @@ PY
 
 collect_disk_json() {
   local threshold_mb avail_kb free_mb free_gb disk_ok
-  threshold_mb="${OTA_STATUS_MIN_DISK_MB:-5000}"
+  threshold_mb="${OTA_STATUS_MIN_DISK_MB:-${OTA_MIN_FREE_DISK_MB:-10240}}"
   mkdir -p "$OTA_BUILDS_DIR"
   avail_kb="$(df -k "$OTA_BUILDS_DIR" | awk 'NR==2 {print $4}')"
   free_mb=$((avail_kb / 1024))

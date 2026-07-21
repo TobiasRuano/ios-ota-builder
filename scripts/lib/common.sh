@@ -474,7 +474,7 @@ run_dry_run_preflight() {
   local checks_json overall_status server_url server_msg
 
   start_epoch=$(date +%s)
-  threshold_mb="${OTA_STATUS_MIN_DISK_MB:-5000}"
+  threshold_mb="${OTA_STATUS_MIN_DISK_MB:-${OTA_MIN_FREE_DISK_MB:-10240}}"
   overall_status="ok"
   checks_json='[
     {"name": "config", "status": "ok"},
