@@ -21,8 +21,8 @@ usage() {
 Usage: agent_build_ota.sh [options] <project-id>
 
 Options:
-  --debug              Archive/export using Debug configuration (overrides projects.json)
-  --release            Archive/export using Release configuration (overrides projects.json)
+  --debug              Archive/export using the project's debug configuration
+  --release            Archive/export using the project's release configuration
   --dry-run            Run preflight only (signing, disk, server); no compile
   --workspace-path P   Build from this app repo path (e.g. a git worktree)
   --notes TEXT         Manual release notes (overrides auto-generated git log notes)
@@ -46,11 +46,11 @@ parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --debug)
-        OTA_CONFIGURATION_OVERRIDE="Debug"
+        OTA_CONFIGURATION_OVERRIDE="__DEBUG__"
         shift
         ;;
       --release)
-        OTA_CONFIGURATION_OVERRIDE="Release"
+        OTA_CONFIGURATION_OVERRIDE="__RELEASE__"
         shift
         ;;
       --dry-run)
