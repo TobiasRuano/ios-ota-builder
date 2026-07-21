@@ -17,6 +17,7 @@ export OTA_BUILDS_DIR="$OTA_BUILDER_ROOT/OTA-Builds"
 export OTA_PORT="${OTA_PORT:-8765}"
 export OTA_KEEP_BUILDS="${OTA_KEEP_BUILDS:-5}"
 export OTA_MAX_AGE_DAYS="${OTA_MAX_AGE_DAYS:-7}"
+export OTA_MIN_FREE_DISK_MB="${OTA_MIN_FREE_DISK_MB:-10240}"
 export LAUNCHD_LABEL_PREFIX="${LAUNCHD_LABEL_PREFIX:-com.local.ios-ota-builder}"
 
 _LOCAL_ENV="$_CONFIG_DIR/local.env"
@@ -26,6 +27,9 @@ if [[ -f "$_LOCAL_ENV" ]]; then
   source "$_LOCAL_ENV"
   set +a
 fi
+
+# Use the same disk floor in the dashboard and build preflight unless explicitly overridden.
+export OTA_STATUS_MIN_DISK_MB="${OTA_STATUS_MIN_DISK_MB:-$OTA_MIN_FREE_DISK_MB}"
 
 # Legacy: migrate from config/access.token if present
 if [[ -z "${OTA_ACCESS_TOKEN:-}" && -f "$_CONFIG_DIR/access.token" ]]; then

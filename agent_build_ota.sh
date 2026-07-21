@@ -184,7 +184,12 @@ main() {
     FAILED_STAGE="environment"
     exit "$EC_ENVIRONMENT"
   fi
-  check_disk_space 5000
+  # Retention runs before the disk check so stale published builds never block a new archive.
+  if ! "$OTA_BUILDER_ROOT/scripts/cleanup_ota.sh" >&2; then
+    log_error "Could not complete OTA retention cleanup before the build"
+    exit "$EC_ENVIRONMENT"
+  fi
+  check_disk_space "$OTA_MIN_FREE_DISK_MB"
   mkdir -p "$OTA_BUILDS_DIR"
   acquire_build_lock
 
